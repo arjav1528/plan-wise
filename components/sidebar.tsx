@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Plus, Settings, LogOut, LayoutGrid, Map, BookOpen, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/components/logout-button";
 
 const projects = [
     {
@@ -78,10 +79,7 @@ export function Sidebar() {
                         <span className="text-xs text-muted-foreground">user@example.com</span>
                     </div>
                 </div>
-                <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground" size="sm">
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
-                </Button>
+                <LogoutButton />
             </div>
         </aside>
     );
