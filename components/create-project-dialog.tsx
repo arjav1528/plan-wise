@@ -5,7 +5,8 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon, ChevronDown } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createProject } from "@/lib/supabase/projects";
-import { uploadProjectImages } from "@/lib/supabase/storage";
+import { uploadProjectFiles } from "@/lib/supabase/storage";
+import type { FileData } from "@/components/file-upload";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ImageUpload } from "@/components/image-upload";
+import { FileUpload } from "@/components/file-upload";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -42,7 +43,7 @@ export function CreateProjectDialog({
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState<Date | undefined>(undefined);
   const [dailyHours, setDailyHours] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [files, setFiles] = useState<FileData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -54,11 +55,11 @@ export function CreateProjectDialog({
       setDescription("");
       setDeadline(undefined);
       setDailyHours("");
-      setImages([]);
+      setFiles([]);
     }
   }, [open]);
 
-  // Global paste handler for images when dialog is open
+  // Global paste handler for files when dialog is open
   useEffect(() => {
     if (!open) return;
 
@@ -66,24 +67,23 @@ export function CreateProjectDialog({
       const items = e.clipboardData?.items;
       if (!items) return;
 
-      const imageFiles: File[] = [];
+      const pastedFiles: File[] = [];
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        if (item.type.startsWith("image/")) {
+        if (item.kind === "file") {
           const file = item.getAsFile();
           if (file) {
-            imageFiles.push(file);
+            pastedFiles.push(file);
           }
         }
       }
 
-      if (imageFiles.length > 0) {
-        // Process images similar to ImageUpload component
-        const processImages = async () => {
-          const newImages: string[] = [];
-          for (const file of imageFiles) {
-            if (file.size > 5 * 1024 * 1024) {
-              alert(`File ${file.name} is too large. Maximum size is 5MB.`);
+      if (pastedFiles.length > 0) {
+        const processFiles = async () => {
+          const newFiles: FileData[] = [];
+          for (const file of pastedFiles) {
+            if (file.size > 10 * 1024 * 1024) {
+              alert(`File ${file.name} is too large. Maximum size is 10MB.`);
               continue;
             }
 
@@ -93,13 +93,19 @@ export function CreateProjectDialog({
               reader.onerror = reject;
               reader.readAsDataURL(file);
             });
-            newImages.push(dataUrl);
+
+            newFiles.push({
+              dataUrl,
+              fileName: file.name,
+              fileType: file.type || "application/octet-stream",
+              fileSize: file.size,
+            });
           }
-          if (newImages.length > 0) {
-            setImages((prev) => [...prev, ...newImages]);
+          if (newFiles.length > 0) {
+            setFiles((prev) => [...prev, ...newFiles]);
           }
         };
-        processImages();
+        processFiles();
       }
     };
 
@@ -121,13 +127,24 @@ export function CreateProjectDialog({
         throw new Error("User not authenticated");
       }
 
-      // Upload images to storage if any
-      let imageUrls: string[] = [];
-      if (images.length > 0) {
+      // Upload files to storage if any
+      let fileUrls: string[] = [];
+      if (files.length > 0) {
         try {
-          imageUrls = await uploadProjectImages(images, user.id);
+          const fileDataUrls = files.map((f) => f.dataUrl);
+          const fileNames = files.map((f) => f.fileName);
+          const fileTypes = files.map((f) => f.fileType);
+          const fileSizes = files.map((f) => f.fileSize);
+          
+          fileUrls = await uploadProjectFiles(
+            fileDataUrls,
+            fileNames,
+            fileTypes,
+            fileSizes,
+            user.id
+          );
         } catch (error) {
-          console.warn("Image upload failed, continuing without images:", error);
+          console.warn("File upload failed, continuing without files:", error);
         }
       }
 
@@ -141,15 +158,15 @@ export function CreateProjectDialog({
         daily_hours: dailyHours ? parseFloat(dailyHours) : null,
       };
 
-      // Store image URLs
-      // Note: If your Project table has an image_urls field, use that instead
+      // Store file URLs
+      // Note: If your Project table has a file_urls field, use that instead
       // For now, we'll store as JSON in description or you can add a separate field
-      if (imageUrls.length > 0) {
-        // Store image URLs as JSON string in description
-        // In production, consider adding an image_urls JSONB field to the Project table
-        const imageData = JSON.stringify(imageUrls);
-        const imageInfo = `\n\n<!-- IMAGES: ${imageData} -->`;
-        projectData.description = (projectData.description || '') + imageInfo;
+      if (fileUrls.length > 0) {
+        // Store file URLs as JSON string in description
+        // In production, consider adding a file_urls JSONB field to the Project table
+        const fileData = JSON.stringify(fileUrls);
+        const fileInfo = `\n\n<!-- FILES: ${fileData} -->`;
+        projectData.description = (projectData.description || '') + fileInfo;
       }
 
       const { error } = await createProject(projectData);
@@ -163,7 +180,7 @@ export function CreateProjectDialog({
       setDescription("");
       setDeadline(undefined);
       setDailyHours("");
-      setImages([]);
+      setFiles([]);
       onOpenChange(false);
       onProjectCreated?.();
     } catch (error) {
@@ -260,10 +277,11 @@ export function CreateProjectDialog({
               </div>
             </div>
 
-            <ImageUpload
-              images={images}
-              onImagesChange={setImages}
+            <FileUpload
+              files={files}
+              onFilesChange={setFiles}
               disabled={isLoading}
+              maxSizeMB={10}
             />
           </div>
           <DialogFooter>
