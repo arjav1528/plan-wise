@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthClaims } from "@/lib/supabase/auth-server";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Suspense } from "react";
 
 async function AuthRedirect() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  const { data } = await getAuthClaims();
 
   // If user is authenticated, redirect to dashboard
   if (data?.claims) {

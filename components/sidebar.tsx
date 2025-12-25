@@ -6,9 +6,11 @@ import { Plus, Settings, LogOut, LayoutGrid, Map, BookOpen, User } from "lucide-
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/logout-button";
-import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
-import { Project, DB_TABLES, Profile } from "@/lib/types";
+import { Project } from "@/lib/types";
+import { CreateProjectDialog } from "@/components/create-project-dialog";
+import { getProjects } from "@/lib/supabase/projects";
+import { getUserEmail } from "@/lib/supabase/auth";
 
 
 
@@ -17,38 +19,30 @@ export function Sidebar() {
     
     const pathname = usePathname();
     const [projectsList, setProjectsList] = useState<Project[]>([]);
-
     const [email, setEmail] = useState<string | null>(null);
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
 
+
+    const fetchProjects = async () => {
+        const { data, error } = await getProjects();
+        if (error) {
+            console.error(error);
+        }
+        setProjectsList(data || []);
+    };
 
     useEffect(() => {
-        const fetchProjects = async () => {
-            const supabase = createClient();
-            const { data, error } = await supabase.from(DB_TABLES.PROJECTS).select("*");
-            if (error) {
-                console.error(error);
-            }
-            setProjectsList(data || []);
-        }
         fetchProjects();
     }, []);
 
     useEffect(() => {
         const fetchUser = async () => {
-            const supabase = createClient();
-            const { data, error } = await supabase.auth.getUser();
-            // console.log(data);
-            if (error) {
-                console.error(error);
-            }
-            console.log(data.user?.email);
-            setEmail(data.user?.email || null);
-
-            
-            }
-            fetchUser();
-        }, []);
+            const userEmail = await getUserEmail();
+            setEmail(userEmail);
+        };
+        fetchUser();
+    }, []);
 
     return (
         <aside className="hidden w-64 flex-col border-r bg-muted/30 md:flex">
@@ -64,7 +58,11 @@ export function Sidebar() {
             <div className="flex-1 overflow-auto py-4">
                 <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
                     <div className="mb-4 px-2">
-                        <Button className="w-full justify-start gap-2" size="sm">
+                        <Button 
+                            className="w-full justify-start gap-2" 
+                            size="sm"
+                            onClick={() => setIsCreateDialogOpen(true)}
+                        >
                             <Plus className="h-4 w-4" />
                             New Project
                         </Button>
@@ -107,6 +105,11 @@ export function Sidebar() {
                 </div>
                 <LogoutButton />
             </div>
+            <CreateProjectDialog
+                open={isCreateDialogOpen}
+                onOpenChange={setIsCreateDialogOpen}
+                onProjectCreated={fetchProjects}
+            />
         </aside>
     );
 }

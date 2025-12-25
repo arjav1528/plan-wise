@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { signIn } from "@/lib/supabase/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,15 +28,11 @@ export function LoginForm({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await signIn({ email, password });
       if (error) throw error;
       // Redirect to dashboard - use window.location for immediate redirect without flash
       window.location.href = "/dashboard";

@@ -5,9 +5,10 @@ import Link from "next/link";
 import { Menu, X, BookOpen, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DB_TABLES, Project } from "@/lib/types";
-import { createClient } from "@/lib/supabase/client";
+import { Project } from "@/lib/types";
 import { LogoutButton } from "@/components/logout-button";
+import { getProjects } from "@/lib/supabase/projects";
+import { getUserEmail } from "@/lib/supabase/auth";
 
 export function MobileNav() {
     const [isOpen, setIsOpen] = useState(false);
@@ -18,25 +19,20 @@ export function MobileNav() {
 
     useEffect(() => {
         const fetchProjects = async () => {
-            const supabase = createClient();
-            const { data, error } = await supabase.from(DB_TABLES.PROJECTS).select("*");
+            const { data, error } = await getProjects();
             if (error) {
                 console.error(error);
             }
             setProjectsList(data || []);
-        }
+        };
         fetchProjects();
     }, []);
 
     useEffect(() => {
         const fetchUser = async () => {
-            const supabase = createClient();
-            const { data, error } = await supabase.auth.getUser();
-            setEmail(data.user?.email || null);
-            if (error) {
-                console.error(error);
-            }
-        }
+            const userEmail = await getUserEmail();
+            setEmail(userEmail);
+        };
         fetchUser();
     }, []);
     return (
