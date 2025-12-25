@@ -6,22 +6,29 @@ import { Plus, Settings, LogOut, LayoutGrid, Map, BookOpen, User } from "lucide-
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/logout-button";
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
+import { Project, DB_TABLES } from "@/lib/types";
 
-const projects = [
-    {
-        id: "1",
-        title: "Learn Spanish",
-        isActive: true, // Mock active state
-    },
-    {
-        id: "2",
-        title: "Marathon Training",
-        isActive: false,
-    },
-];
+
 
 export function Sidebar() {
+
+    
     const pathname = usePathname();
+    const [projectsList, setProjectsList] = useState<Project[]>([]);
+
+    useEffect(() => {
+        const fetchProjects = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase.from(DB_TABLES.PROJECTS).select("*");
+            if (error) {
+                console.error(error);
+            }
+            setProjectsList(data || []);
+        }
+        fetchProjects();
+    }, []);
 
     return (
         <aside className="hidden w-64 flex-col border-r bg-muted/30 md:flex">
@@ -48,13 +55,13 @@ export function Sidebar() {
                             Projects
                         </h3>
                         <div className="space-y-1">
-                            {projects.map((project) => (
+                            {projectsList.map((project: Project) => (
                                 <Link
                                     key={project.id}
                                     href={`/dashboard/project/${project.id}`}
                                     className={cn(
                                         "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary",
-                                        project.isActive
+                                        project.is_active
                                             ? "bg-muted text-primary"
                                             : "text-muted-foreground hover:bg-muted"
                                     )}

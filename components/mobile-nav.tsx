@@ -1,18 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X, BookOpen, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const projects = [
-    { id: "1", title: "Learn Spanish" },
-    { id: "2", title: "Marathon Training" },
-];
+import { DB_TABLES, Project } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
 
 export function MobileNav() {
     const [isOpen, setIsOpen] = useState(false);
+
+    const [projectsList, setProjectsList] = useState<Project[]>([]);
+
+    useEffect(() => {
+        const fetchProjects = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase.from(DB_TABLES.PROJECTS).select("*");
+            if (error) {
+                console.error(error);
+            }
+            setProjectsList(data || []);
+        }
+        fetchProjects();
+    }, []);
 
     return (
         <div className="flex items-center border-b p-4 md:hidden">
@@ -56,7 +67,7 @@ export function MobileNav() {
                                     Projects
                                 </h3>
                                 <div className="space-y-1">
-                                    {projects.map((project) => (
+                                    {projectsList.map((project: Project) => (
                                         <Link
                                             key={project.id}
                                             href={`/dashboard/project/${project.id}`}
