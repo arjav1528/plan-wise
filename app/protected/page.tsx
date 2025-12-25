@@ -13,6 +13,10 @@ async function UserDetails() {
     redirect("/auth/login");
   }
 
+  if (data?.claims) {
+    redirect("/dashboard");
+  }
+
   return JSON.stringify(data.claims, null, 2);
 }
 
