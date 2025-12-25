@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNav } from "@/components/mobile-nav";
 
@@ -11,7 +12,9 @@ export default function DashboardLayout({
             <MobileNav />
             <Sidebar />
             <main className="flex-1 overflow-y-auto w-full">
-                {children}
+                <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                    {children}
+                </Suspense>
             </main>
         </div>
     );
