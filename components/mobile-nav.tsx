@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DB_TABLES, Project } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
+import { LogoutButton } from "@/components/logout-button";
 
 export function MobileNav() {
     const [isOpen, setIsOpen] = useState(false);
 
     const [projectsList, setProjectsList] = useState<Project[]>([]);
+
+    const [email, setEmail] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchProjects = async () => {
@@ -25,6 +28,17 @@ export function MobileNav() {
         fetchProjects();
     }, []);
 
+    useEffect(() => {
+        const fetchUser = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase.auth.getUser();
+            setEmail(data.user?.email || null);
+            if (error) {
+                console.error(error);
+            }
+        }
+        fetchUser();
+    }, []);
     return (
         <div className="flex items-center border-b p-4 md:hidden">
             <Button
@@ -32,6 +46,7 @@ export function MobileNav() {
                 size="icon"
                 className="mr-2"
                 onClick={() => setIsOpen(!isOpen)}
+
             >
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Toggle Menu</span>
@@ -44,7 +59,7 @@ export function MobileNav() {
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex bg-background/80 backdrop-blur-sm animate-in fade-in-0" onClick={() => setIsOpen(false)}>
                     <div
-                        className="fixed inset-y-0 left-0 z-50 h-full w-3/4 gap-4 border-r bg-background p-6 shadow-lg transition ease-in-out animate-in slide-in-from-left-10"
+                        className="fixed inset-y-0 left-0 z-50 flex h-full w-3/4 flex-col gap-4 border-r bg-background p-6 shadow-lg transition ease-in-out animate-in slide-in-from-left-10"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between mb-8">
@@ -57,7 +72,7 @@ export function MobileNav() {
                             </Button>
                         </div>
 
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-1 flex-col gap-4 overflow-auto">
                             <Button className="w-full justify-start gap-2" size="sm">
                                 <Plus className="h-4 w-4" />
                                 New Project
@@ -79,6 +94,20 @@ export function MobileNav() {
                                     ))}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="mt-auto border-t pt-4">
+                            <div className="mb-4 flex items-center gap-3 pl-2">
+                                {/* Simple Avatar Placeholder */}
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                                    U
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-muted-foreground">{email}</span>
+                                </div>
+                            </div>
+                            <LogoutButton />
                         </div>
                     </div>
                 </div>

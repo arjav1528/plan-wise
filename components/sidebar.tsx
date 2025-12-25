@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
-import { Project, DB_TABLES } from "@/lib/types";
+import { Project, DB_TABLES, Profile } from "@/lib/types";
 
 
 
@@ -17,6 +17,10 @@ export function Sidebar() {
     
     const pathname = usePathname();
     const [projectsList, setProjectsList] = useState<Project[]>([]);
+
+    const [email, setEmail] = useState<string | null>(null);
+
+
 
     useEffect(() => {
         const fetchProjects = async () => {
@@ -29,6 +33,22 @@ export function Sidebar() {
         }
         fetchProjects();
     }, []);
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase.auth.getUser();
+            // console.log(data);
+            if (error) {
+                console.error(error);
+            }
+            console.log(data.user?.email);
+            setEmail(data.user?.email || null);
+
+            
+            }
+            fetchUser();
+        }, []);
 
     return (
         <aside className="hidden w-64 flex-col border-r bg-muted/30 md:flex">
@@ -82,8 +102,7 @@ export function Sidebar() {
                         U
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-sm font-medium">User Name</span>
-                        <span className="text-xs text-muted-foreground">user@example.com</span>
+                        <span className="text-xs text-muted-foreground">{email}</span>
                     </div>
                 </div>
                 <LogoutButton />
