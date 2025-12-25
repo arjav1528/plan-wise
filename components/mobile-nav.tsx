@@ -16,22 +16,28 @@ export function MobileNav() {
     const [projectsList, setProjectsList] = useState<Project[]>([]);
 
     const [email, setEmail] = useState<string | null>(null);
+    const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+    const [isLoadingEmail, setIsLoadingEmail] = useState(true);
 
     useEffect(() => {
         const fetchProjects = async () => {
+            setIsLoadingProjects(true);
             const { data, error } = await getProjects();
             if (error) {
                 console.error(error);
             }
             setProjectsList(data || []);
+            setIsLoadingProjects(false);
         };
         fetchProjects();
     }, []);
 
     useEffect(() => {
         const fetchUser = async () => {
+            setIsLoadingEmail(true);
             const userEmail = await getUserEmail();
             setEmail(userEmail);
+            setIsLoadingEmail(false);
         };
         fetchUser();
     }, []);
@@ -78,16 +84,32 @@ export function MobileNav() {
                                     Projects
                                 </h3>
                                 <div className="space-y-1">
-                                    {projectsList.map((project: Project) => (
-                                        <Link
-                                            key={project.id}
-                                            href={`/dashboard/project/${project.id}`}
-                                            onClick={() => setIsOpen(false)}
-                                            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted"
-                                        >
-                                            {project.title}
-                                        </Link>
-                                    ))}
+                                    {isLoadingProjects ? (
+                                        // Loading skeleton for projects
+                                        Array.from({ length: 3 }).map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className="flex items-center gap-3 rounded-lg px-3 py-2"
+                                            >
+                                                <div className="h-4 w-full bg-muted animate-pulse rounded" />
+                                            </div>
+                                        ))
+                                    ) : projectsList.length === 0 ? (
+                                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                                            No projects yet
+                                        </div>
+                                    ) : (
+                                        projectsList.map((project: Project) => (
+                                            <Link
+                                                key={project.id}
+                                                href={`/dashboard/project/${project.id}`}
+                                                onClick={() => setIsOpen(false)}
+                                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted"
+                                            >
+                                                {project.title}
+                                            </Link>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -99,8 +121,12 @@ export function MobileNav() {
                                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
                                     U
                                 </div>
-                                <div className="flex flex-col">
-                                    <span className="text-xs text-muted-foreground">{email}</span>
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    {isLoadingEmail ? (
+                                        <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground truncate">{email || "Loading..."}</span>
+                                    )}
                                 </div>
                             </div>
                             <LogoutButton />
