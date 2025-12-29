@@ -1,10 +1,19 @@
 "use client";
 
-import { CheckCircle2, Clock, MoreHorizontal, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Clock, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { type Project, type Task, type PostgrestError } from "@/lib/types";
+import { createTask, updateTask, deleteTask, getTasksByProjectId } from "@/lib/supabase/tasks";
+import { updateProject } from "@/lib/supabase/projects";
 
 interface ProjectWorkspaceProps {
     project: Project;
@@ -81,9 +90,128 @@ function getCurrentWeekDays(): Array<{ day: string; date: string; dateObj: Date;
     return days;
 }
 
-export function ProjectWorkspace({ project, tasks, tasksError }: ProjectWorkspaceProps) {
+export function ProjectWorkspace({ project: initialProject, tasks: initialTasks, tasksError }: ProjectWorkspaceProps) {
+    const router = useRouter();
+    const [project, setProject] = useState<Project>(initialProject);
+    const [tasks, setTasks] = useState<Task[]>(initialTasks);
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isUpdatingProject, setIsUpdatingProject] = useState(false);
+    const [createTaskForm, setCreateTaskForm] = useState({
+        title: "",
+        estimated_hours: "",
+        status: "pending" as "pending" | "completed" | "skipped",
+    });
+    const [editProjectForm, setEditProjectForm] = useState({
+        title: initialProject.title,
+        description: initialProject.description || "",
+        deadline: initialProject.deadline ? new Date(initialProject.deadline).toISOString().split('T')[0] : "",
+        daily_hours: initialProject.daily_hours?.toString() || "",
+    });
+
+    // Update form when project changes
+    useEffect(() => {
+        setEditProjectForm({
+            title: project.title,
+            description: project.description || "",
+            deadline: project.deadline ? new Date(project.deadline).toISOString().split('T')[0] : "",
+            daily_hours: project.daily_hours?.toString() || "",
+        });
+    }, [project]);
+
     const projectStatus = calculateProjectStatus(project, tasks);
     const weekDays = getCurrentWeekDays();
+    
+    // Refresh tasks from the database
+    const refreshTasks = async () => {
+        const { data, error } = await getTasksByProjectId(project.id);
+        if (!error && data) {
+            setTasks(data);
+        }
+    };
+
+    // Handle create task
+    const handleCreateTask = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        
+        const taskData = {
+            project_id: project.id,
+            title: createTaskForm.title,
+            estimated_hours: createTaskForm.estimated_hours ? parseFloat(createTaskForm.estimated_hours) : null,
+            status: createTaskForm.status,
+        };
+
+        const { error } = await createTask(taskData);
+        
+        if (!error) {
+            setIsCreateDialogOpen(false);
+            setCreateTaskForm({ title: "", estimated_hours: "", status: "pending" });
+            await refreshTasks();
+        } else {
+            console.error("Error creating task:", error);
+            alert("Failed to create task: " + error.message);
+        }
+        
+        setIsLoading(false);
+    };
+
+    // Handle update task status
+    const handleUpdateTaskStatus = async (taskId: string, currentStatus: string | null) => {
+        const newStatus = currentStatus === "completed" ? "pending" : "completed";
+        
+        const { error } = await updateTask(taskId, { status: newStatus });
+        
+        if (!error) {
+            await refreshTasks();
+        } else {
+            console.error("Error updating task:", error);
+            alert("Failed to update task: " + error.message);
+        }
+    };
+
+    // Handle delete task
+    const handleDeleteTask = async (taskId: string) => {
+        if (!confirm("Are you sure you want to delete this task?")) {
+            return;
+        }
+
+        const { error } = await deleteTask(taskId);
+        
+        if (!error) {
+            await refreshTasks();
+        } else {
+            console.error("Error deleting task:", error);
+            alert("Failed to delete task: " + error.message);
+        }
+    };
+
+    // Handle update project
+    const handleUpdateProject = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsUpdatingProject(true);
+        
+        const updateData = {
+            title: editProjectForm.title,
+            description: editProjectForm.description || null,
+            deadline: editProjectForm.deadline ? editProjectForm.deadline : null,
+            daily_hours: editProjectForm.daily_hours ? parseFloat(editProjectForm.daily_hours) : null,
+        };
+
+        const { data, error } = await updateProject(project.id, updateData);
+        
+        if (!error && data) {
+            setProject(data);
+            setIsEditDialogOpen(false);
+            router.refresh(); // Refresh server component data
+        } else {
+            console.error("Error updating project:", error);
+            alert("Failed to update project: " + (error?.message || "Unknown error"));
+        }
+        
+        setIsUpdatingProject(false);
+    };
     
     // Filter tasks for today (you might want to filter by daily_logs in the future)
     // For now, show all pending and some completed tasks
@@ -123,7 +251,75 @@ export function ProjectWorkspace({ project, tasks, tasksError }: ProjectWorkspac
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">Edit Plan</Button>
+                    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="sm">Edit Plan</Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                            <form onSubmit={handleUpdateProject}>
+                                <DialogHeader>
+                                    <DialogTitle>Edit Project</DialogTitle>
+                                    <DialogDescription>
+                                        Update your project details. Make changes to the fields below.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="project-title">Title *</Label>
+                                        <Input
+                                            id="project-title"
+                                            placeholder="Enter project title"
+                                            value={editProjectForm.title}
+                                            onChange={(e) => setEditProjectForm({ ...editProjectForm, title: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="project-description">Description</Label>
+                                        <Textarea
+                                            id="project-description"
+                                            placeholder="Enter project description"
+                                            value={editProjectForm.description}
+                                            onChange={(e) => setEditProjectForm({ ...editProjectForm, description: e.target.value })}
+                                            rows={4}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="project-deadline">Deadline</Label>
+                                            <Input
+                                                id="project-deadline"
+                                                type="date"
+                                                value={editProjectForm.deadline}
+                                                onChange={(e) => setEditProjectForm({ ...editProjectForm, deadline: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="project-daily-hours">Daily Hours</Label>
+                                            <Input
+                                                id="project-daily-hours"
+                                                type="number"
+                                                step="0.5"
+                                                min="0"
+                                                max="24"
+                                                placeholder="e.g., 8"
+                                                value={editProjectForm.daily_hours}
+                                                onChange={(e) => setEditProjectForm({ ...editProjectForm, daily_hours: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit" disabled={isUpdatingProject}>
+                                        {isUpdatingProject ? "Updating..." : "Update Project"}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
                     <Button variant="ghost" size="icon">
                         <MoreHorizontal className="h-4 w-4" />
                     </Button>
@@ -167,10 +363,69 @@ export function ProjectWorkspace({ project, tasks, tasksError }: ProjectWorkspac
                 <div>
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="text-sm font-semibold tracking-tight">Today's Focus</h2>
-                        <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
-                            <Plus className="h-3 w-3" />
-                            Add Task
-                        </Button>
+                        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
+                                    <Plus className="h-3 w-3" />
+                                    Add Task
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <form onSubmit={handleCreateTask}>
+                                    <DialogHeader>
+                                        <DialogTitle>Create New Task</DialogTitle>
+                                        <DialogDescription>
+                                            Add a new task to your project. Fill in the details below.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 py-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="title">Title *</Label>
+                                            <Input
+                                                id="title"
+                                                placeholder="Enter task title"
+                                                value={createTaskForm.title}
+                                                onChange={(e) => setCreateTaskForm({ ...createTaskForm, title: e.target.value })}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="estimated_hours">Estimated Hours</Label>
+                                            <Input
+                                                id="estimated_hours"
+                                                type="number"
+                                                step="0.5"
+                                                min="0"
+                                                placeholder="e.g., 2.5"
+                                                value={createTaskForm.estimated_hours}
+                                                onChange={(e) => setCreateTaskForm({ ...createTaskForm, estimated_hours: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="status">Status</Label>
+                                            <select
+                                                id="status"
+                                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                value={createTaskForm.status}
+                                                onChange={(e) => setCreateTaskForm({ ...createTaskForm, status: e.target.value as "pending" | "completed" | "skipped" })}
+                                            >
+                                                <option value="pending">Pending</option>
+                                                <option value="completed">Completed</option>
+                                                <option value="skipped">Skipped</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                                            Cancel
+                                        </Button>
+                                        <Button type="submit" disabled={isLoading}>
+                                            {isLoading ? "Creating..." : "Create Task"}
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
                     </div>
 
                     {tasksError && (
@@ -200,6 +455,7 @@ export function ProjectWorkspace({ project, tasks, tasksError }: ProjectWorkspac
                                                             ? "border-primary text-primary" 
                                                             : "border-muted-foreground text-transparent hover:border-primary"
                                                     )}
+                                                    onClick={() => handleUpdateTaskStatus(task.id, task.status)}
                                                 >
                                                     <CheckCircle2 className={cn("h-4 w-4", !isCompleted && "opacity-0 group-hover:opacity-20")} />
                                                 </Button>
@@ -215,13 +471,47 @@ export function ProjectWorkspace({ project, tasks, tasksError }: ProjectWorkspac
                                                     <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                                                         <Clock className="h-3 w-3" />
                                                         {formatHours(task.estimated_hours)}
+                                                        {task.status && (
+                                                            <>
+                                                                <span className="mx-1">•</span>
+                                                                <span className={cn(
+                                                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                                                    task.status === "completed"
+                                                                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                                                        : task.status === "skipped"
+                                                                        ? "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
+                                                                        : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                                                )}>
+                                                                    {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                                                                </span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem
+                                                            className="text-destructive focus:text-destructive"
+                                                            onClick={() => handleDeleteTask(task.id)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-2" />
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </CardContent>
                                         </Card>
                                     );
                                 })}
-                                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors">
+                                <div 
+                                    className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors"
+                                    onClick={() => setIsCreateDialogOpen(true)}
+                                >
                                     + Add another task
                                 </div>
                             </>
