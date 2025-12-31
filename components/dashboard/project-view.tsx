@@ -450,9 +450,9 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                             </form>
                         </DialogContent>
                     </Dialog>
-                    <Button variant="ghost" size="icon">
+                    {/* <Button variant="ghost" size="icon">
                         <MoreHorizontal className="h-4 w-4" />
-                    </Button>
+                    </Button> */}
                 </div>
             </header>
 
