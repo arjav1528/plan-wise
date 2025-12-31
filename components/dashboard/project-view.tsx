@@ -244,7 +244,30 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         setIsLoading(false);
     };
 
-    const handleUpdateTaskStatus = async (taskId: string, currentStatus: string | null) => {
+    const isTaskCreatedToday = (task: Task): boolean => {
+        if (!task.created_at) return false;
+        const taskDate = new Date(task.created_at);
+        taskDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return taskDate.getTime() === today.getTime();
+    };
+
+    const isSelectedDateToday = (): boolean => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const selected = new Date(selectedDate);
+        selected.setHours(0, 0, 0, 0);
+        return selected.getTime() === today.getTime();
+    };
+
+    const handleUpdateTaskStatus = async (taskId: string, currentStatus: string | null, task: Task) => {
+        // Check if task was created today
+        if (!isTaskCreatedToday(task)) {
+            alert("You can only change the status of tasks that were assigned today.");
+            return;
+        }
+
         const newStatus = currentStatus === "completed" ? "pending" : "completed";
         
         const { error } = await updateTask(taskId, { status: newStatus });
@@ -567,13 +590,14 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                                 ? "Today's Focus" 
                                 : selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + "'s Focus"}
                         </h2>
-                        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
-                                    <Plus className="h-3 w-3" />
-                                    Add Task
-                                </Button>
-                            </DialogTrigger>
+                        {isSelectedDateToday() && (
+                            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
+                                        <Plus className="h-3 w-3" />
+                                        Add Task
+                                    </Button>
+                                </DialogTrigger>
                             <DialogContent>
                                 <form onSubmit={handleCreateTask}>
                                     <DialogHeader>
@@ -630,6 +654,7 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                                 </form>
                             </DialogContent>
                         </Dialog>
+                        )}
                     </div>
 
                     {tasksError && (
@@ -647,6 +672,7 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                             <>
                                 {sortedTasks.map((task) => {
                                     const isCompleted = task.status === "completed";
+                                    const canChangeStatus = isTaskCreatedToday(task);
                                     return (
                                         <Card key={task.id} className="transition-all hover:shadow-md group">
                                             <CardContent className="flex items-center p-4">
@@ -657,9 +683,12 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                                                         "mr-4 h-6 w-6 rounded-full border-2 p-0 hover:bg-transparent",
                                                         isCompleted 
                                                             ? "border-primary text-primary" 
-                                                            : "border-muted-foreground text-transparent hover:border-primary"
+                                                            : "border-muted-foreground text-transparent hover:border-primary",
+                                                        !canChangeStatus && "opacity-50 cursor-not-allowed"
                                                     )}
-                                                    onClick={() => handleUpdateTaskStatus(task.id, task.status)}
+                                                    onClick={() => handleUpdateTaskStatus(task.id, task.status, task)}
+                                                    disabled={!canChangeStatus}
+                                                    title={!canChangeStatus ? "You can only change the status of tasks assigned today" : undefined}
                                                 >
                                                     <CheckCircle2 className={cn("h-4 w-4", !isCompleted && "opacity-0 group-hover:opacity-20")} />
                                                 </Button>
@@ -712,12 +741,14 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                                         </Card>
                                     );
                                 })}
-                                <div 
-                                    className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors"
-                                    onClick={() => setIsCreateDialogOpen(true)}
-                                >
-                                    + Add another task
-                                </div>
+                                {isSelectedDateToday() && (
+                                    <div 
+                                        className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors"
+                                        onClick={() => setIsCreateDialogOpen(true)}
+                                    >
+                                        + Add another task
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
