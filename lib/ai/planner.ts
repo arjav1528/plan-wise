@@ -1,40 +1,42 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { PlanRequest, PlanResponse } from "../types";
 
-const PLANWISE_SYSTEM_PROMPT = `You are Planwise, an intelligent planning assistant embedded inside a productivity application.
-Your job is to help users turn long-term goals into structured curricula and tasks, which are then scheduled and adapted by the system.
+const PLANWISE_SYSTEM_PROMPT = `You are Planwise, an intelligent daily planning assistant embedded inside a productivity application.
+Your job is to generate TODAY'S plan only - a focused set of tasks for the current day that moves the user toward their goal.
 You are not a chatbot.
-You are a planning assistant that outputs structured data for the application to act upon.
+You are a daily planning assistant that outputs structured data for the application to act upon.
 
 Core Responsibilities:
-- Understanding user goals
-- Generating structured curricula
-- Breaking curricula into actionable tasks
-- Estimating effort and priority
-- Respecting user constraints
+- Understanding the user's long-term goal
+- Generating TODAY'S tasks only (not a full curriculum)
+- Breaking down today's work into actionable tasks
+- Estimating effort for today's work
+- Respecting user constraints (time available, deadlines)
+- Avoiding repetition of already completed tasks
 - Producing deterministic, machine-readable output
 
 You must NOT:
-- Decide exact calendar dates
+- Generate tasks for future days
+- Repeat tasks that have already been completed
+- Decide exact calendar dates (beyond "today")
 - Modify existing schedules
-- Perform replanning
 - Override completed work
 - Act autonomously without user input
 
 All execution and scheduling is handled by the Planwise system.
 
 How You Should Think:
-1. What is the goal?
-2. What knowledge or work is required to reach it?
-3. What can be skipped based on prior knowledge?
-4. What is essential vs optional?
-5. How should effort be distributed?
-6. How should this be broken into tasks?
+1. What is the long-term goal?
+2. What has already been completed? (DO NOT repeat these)
+3. What is the next logical step toward the goal?
+4. What can be accomplished TODAY given available time?
+5. How should today's work be broken into tasks?
+6. What dependencies exist for today's tasks?
 
 Prefer:
 - clarity over verbosity
 - structure over prose
 - usefulness over explanation
+- focus on today over long-term planning
 
 Output Rules (STRICT):
 - Output ONLY valid JSON
@@ -45,26 +47,26 @@ Output Rules (STRICT):
 - No trailing commas
 - If something is unclear, make reasonable assumptions and proceed.
 
-Curriculum Guidelines:
-- Topics must be ordered logically
-- Topics must be dependency-aware
-- Topics must be scoped to the timeframe
-- High-impact topics must receive more hours
-- Low-impact or optional topics may be compressed or excluded
-- Avoid unnecessary breadth
+Daily Planning Guidelines:
+- Generate tasks ONLY for TODAY
+- Total estimated hours should fit within the user's daily availability
+- Tasks should be the next logical steps toward the goal
+- Tasks should build on what's already been completed
+- DO NOT include tasks that have already been completed (they will be listed in the prompt)
+- Focus on high-impact work that moves the goal forward
 
 Task Guidelines:
-- Tasks must be atomic
-- Tasks must be actionable
-- Tasks must be schedulable
+- Tasks must be atomic and actionable
 - One task should represent 1–3 hours of work
-- Tasks must align directly with curriculum topics
-- Tasks should not include dates
+- Tasks should be specific and clear
+- Tasks should align with the overall goal
+- Tasks should not include dates (they're for today by default)
 
 Estimation Rules:
 - Be realistic, not optimistic
 - Prefer under-commitment over overload
-- Total estimated hours should fit the timeframe reasonably
+- Total estimated hours should fit the daily availability
+- Account for breaks and context switching
 
 Safety & Trust Rules:
 - Never fabricate progress
@@ -72,58 +74,131 @@ Safety & Trust Rules:
 - Never claim certainty
 - Never pressure the user
 - Never shame or guilt the user
+- Never repeat completed tasks
 - You are an assistant, not a judge.`;
 
-function buildUserPrompt(request: PlanRequest): string {
-  let prompt = `Generate a structured plan for the following goal:\n\n`;
+function buildUserPrompt(request: PlanRequest, completedTasks: Array<{ title: string; description: string | null }> = []): string {
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  
+  let prompt = `Generate TODAY'S plan (${today}) for the following goal:\n\n`;
   prompt += `Goal: ${request.goal}\n\n`;
 
-  if (request.timeframe) {
-    prompt += `Timeframe: ${request.timeframe}\n`;
+  // Include completed tasks to avoid repetition
+  if (completedTasks.length > 0) {
+    prompt += `IMPORTANT: The following tasks have already been completed. DO NOT include them in today's plan:\n`;
+    completedTasks.forEach((task, index) => {
+      prompt += `${index + 1}. ${task.title}${task.description ? ` - ${task.description}` : ''}\n`;
+    });
+    prompt += `\n`;
+  } else {
+    prompt += `Note: No tasks have been completed yet. This appears to be the first day of planning.\n\n`;
   }
 
   if (request.daily_availability) {
-    prompt += `Daily Availability: ${request.daily_availability} hours per day\n`;
+    prompt += `Available Time Today: ${request.daily_availability} hours\n`;
+  } else {
+    prompt += `Available Time Today: Please estimate based on a typical work day\n`;
   }
 
   if (request.prior_knowledge) {
     prompt += `Prior Knowledge: ${request.prior_knowledge}\n`;
   }
 
-  if (request.completed_topics && request.completed_topics.length > 0) {
-    prompt += `Already Completed Topics: ${request.completed_topics.join(", ")}\n`;
-  }
-
   if (request.project_metadata?.deadline) {
-    prompt += `Deadline: ${request.project_metadata.deadline}\n`;
+    const deadlineDate = new Date(request.project_metadata.deadline);
+    const daysUntilDeadline = Math.ceil((deadlineDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    prompt += `Deadline: ${request.project_metadata.deadline} (${daysUntilDeadline} days from today)\n`;
   }
 
   if (request.project_metadata?.focus_level) {
     prompt += `Focus Level: ${request.project_metadata.focus_level}\n`;
   }
 
-  prompt += `\nGenerate a plan following the output schema exactly.`;
+  prompt += `\nGenerate TODAY'S plan only. Focus on what can be accomplished today to move toward the goal. Do not repeat completed tasks.`;
 
   return prompt;
 }
 
-export async function generatePlan(request: PlanRequest): Promise<PlanResponse> {
+export async function generatePlan(
+  request: PlanRequest,
+  completedTasks: Array<{ title: string; description: string | null }> = []
+): Promise<PlanResponse> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API;
   
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY or GOOGLE_GEMINI_API environment variable is not set");
   }
 
-  const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash-001";
-  const userPrompt = buildUserPrompt(request);
+  // Trim and validate API key
+  const trimmedApiKey = apiKey.trim();
+  if (!trimmedApiKey) {
+    throw new Error("GEMINI_API_KEY is empty");
+  }
+
+  let modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  const userPrompt = buildUserPrompt(request, completedTasks);
 
   // Combine system prompt and user prompt for Gemini
-  const fullPrompt = `${PLANWISE_SYSTEM_PROMPT}\n\n${userPrompt}\n\nRemember: Output ONLY valid JSON, no markdown, no commentary.`;
+  const jsonSchema = `\n\nRequired JSON Output Format (for TODAY'S plan only):
+{
+  "curriculum": {
+    "overview": "Brief overview of today's focus and how it relates to the overall goal",
+    "topics": [
+      {
+        "name": "Topic/area to focus on today",
+        "priority": "high" | "medium" | "low",
+        "estimated_hours": number,
+        "prerequisites": [],
+        "description": "What this topic covers for today"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "title": "Task title for today",
+      "description": "Task description - what needs to be done",
+      "estimated_hours": number (should total to available time),
+      "tags": ["tag1", "tag2"]
+    }
+  ],
+  "assumptions": ["assumption1", "assumption2"]
+}
 
-  // Initialize Google Generative AI
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
+IMPORTANT: 
+- Generate tasks ONLY for TODAY
+- Total estimated_hours should match or be less than daily availability
+- Do NOT repeat any completed tasks
+- Focus on the next logical steps toward the goal`;
+
+  const fullPrompt = `${PLANWISE_SYSTEM_PROMPT}${jsonSchema}\n\n${userPrompt}\n\nRemember: Output ONLY valid JSON matching the schema above, no markdown, no commentary, no extra fields. Generate TODAY'S plan only.`;
+
+  // Try different model name formats if the default doesn't work
+  // Updated to use valid v1beta models (removed deprecated gemini-pro)
+  const modelNameVariations = new Set([
+    modelName,
+    `${modelName}-latest`,
+    `${modelName}-001`,
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro-latest",
+    "gemini-1.5-pro-001",
+    "gemini-1.5-pro",
+    "gemini-2.0-flash-exp",
+    "gemini-2.0-flash-thinking-exp-001",
+  ]);
+
+  // Prepare the request body
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          {
+            text: fullPrompt,
+          },
+        ],
+      },
+    ],
     generationConfig: {
       temperature: 0.3,
       topK: 40,
@@ -131,56 +206,169 @@ export async function generatePlan(request: PlanRequest): Promise<PlanResponse> 
       maxOutputTokens: 8192,
       responseMimeType: "application/json",
     },
-  });
+  };
 
-  try {
-    // Generate content
-    const result = await model.generateContent(fullPrompt);
-    const response = await result.response;
-    const content = response.text();
+  let lastError: Error | null = null;
 
-    if (!content) {
-      throw new Error("No content in Gemini response");
+  // Try each model name variation
+  // Also try v1 API version as fallback if v1beta doesn't work
+  const apiVersions = ["v1beta", "v1"];
+  
+  for (const apiVersion of apiVersions) {
+    for (const tryModelName of modelNameVariations) {
+      // Construct the API endpoint
+      // URL encode the API key to handle any special characters
+      const encodedApiKey = encodeURIComponent(trimmedApiKey);
+      const apiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${tryModelName}:generateContent?key=${encodedApiKey}`;
+
+      try {
+        // Make the API request
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+          let errorText = "";
+          let errorMessage = "";
+          try {
+            errorText = await response.text();
+            const errorJson = JSON.parse(errorText);
+            console.error(`Gemini API error for ${apiVersion}/${tryModelName}:`, JSON.stringify(errorJson, null, 2));
+          
+          // Extract detailed error message
+          const apiError = errorJson.error || errorJson;
+          errorMessage = apiError.message || apiError.status || errorText;
+          
+          // Check for specific error patterns
+          if (errorMessage.includes("pattern") || errorMessage.includes("invalid") || errorMessage.includes("format")) {
+            // This might be an API key or model name format issue
+            errorMessage = `API validation error: ${errorMessage}. Please check your GEMINI_API_KEY format and model name.`;
+          }
+          
+            lastError = new Error(`Gemini API request failed: ${response.status} ${response.statusText}. ${errorMessage}`);
+          } catch (parseError) {
+            console.error(`Gemini API error response (raw) for ${apiVersion}/${tryModelName}:`, errorText);
+            errorMessage = errorText || `HTTP ${response.status} ${response.statusText}`;
+            lastError = new Error(`Gemini API request failed: ${response.status} ${response.statusText}. ${errorMessage}`);
+          }
+          
+          // If it's a 404, try the next model name or API version
+          if (response.status === 404) {
+            continue;
+          }
+          
+          // For 400 errors (bad request), it might be a format issue - try next model
+          if (response.status === 400) {
+            console.warn(`Bad request for ${apiVersion}/${tryModelName}, trying next variation...`);
+            continue;
+          }
+          
+          // For other errors, throw immediately
+          throw lastError;
+        }
+
+        // Success! Process the response
+        const data = await response.json();
+
+        // Extract content from the response
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!content) {
+          throw new Error("No content in Gemini response");
+        }
+
+        try {
+          // Gemini may return JSON wrapped in markdown code blocks, so we need to clean it
+          let cleanedContent = content.trim();
+          
+          // Remove markdown code blocks if present
+          if (cleanedContent.startsWith("```json")) {
+            cleanedContent = cleanedContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+          } else if (cleanedContent.startsWith("```")) {
+            cleanedContent = cleanedContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
+          }
+
+          const planResponse: PlanResponse = JSON.parse(cleanedContent);
+          
+          // Log the response structure for debugging
+          console.log("Parsed plan response structure:", {
+            hasCurriculum: !!planResponse.curriculum,
+            hasTasks: !!planResponse.tasks,
+            hasAssumptions: !!planResponse.assumptions,
+            curriculumKeys: planResponse.curriculum ? Object.keys(planResponse.curriculum) : [],
+            tasksType: Array.isArray(planResponse.tasks),
+            assumptionsType: Array.isArray(planResponse.assumptions),
+          });
+          
+          // Validate the response structure with detailed error messages
+          if (!planResponse.curriculum) {
+            console.error("Missing curriculum in response. Response keys:", Object.keys(planResponse));
+            throw new Error("Invalid plan response structure: missing 'curriculum' field");
+          }
+
+          if (!planResponse.tasks) {
+            console.error("Missing tasks in response. Response keys:", Object.keys(planResponse));
+            throw new Error("Invalid plan response structure: missing 'tasks' field");
+          }
+
+          if (!planResponse.assumptions) {
+            console.error("Missing assumptions in response. Response keys:", Object.keys(planResponse));
+            throw new Error("Invalid plan response structure: missing 'assumptions' field");
+          }
+
+          // Validate curriculum structure
+          if (typeof planResponse.curriculum !== "object") {
+            throw new Error("Invalid plan response structure: 'curriculum' must be an object");
+          }
+
+          if (!planResponse.curriculum.topics) {
+            console.error("Missing topics in curriculum. Curriculum keys:", Object.keys(planResponse.curriculum));
+            throw new Error("Invalid plan response structure: missing 'curriculum.topics' field");
+          }
+
+          if (!Array.isArray(planResponse.curriculum.topics)) {
+            throw new Error(`Invalid plan response structure: 'curriculum.topics' must be an array, got ${typeof planResponse.curriculum.topics}`);
+          }
+
+          if (!Array.isArray(planResponse.tasks)) {
+            throw new Error(`Invalid plan response structure: 'tasks' must be an array, got ${typeof planResponse.tasks}`);
+          }
+
+          if (!Array.isArray(planResponse.assumptions)) {
+            throw new Error(`Invalid plan response structure: 'assumptions' must be an array, got ${typeof planResponse.assumptions}`);
+          }
+
+          // Ensure overview exists (it's optional in the type but we should handle it)
+          if (!planResponse.curriculum.overview) {
+            planResponse.curriculum.overview = "Generated curriculum for the specified goal";
+          }
+
+          return planResponse;
+        } catch (parseError) {
+          console.error("Failed to parse AI response. Raw content:", content);
+          console.error("Parse error:", parseError);
+          throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`);
+        }
+      } catch (error) {
+        // If this is not a 404 or we've exhausted all model names, throw the error
+        if (error instanceof Error && !error.message.includes("404")) {
+          throw error;
+        }
+        // Otherwise, continue to next model name
+        lastError = error instanceof Error ? error : new Error("Unknown error");
+        continue;
+      }
     }
-
-    try {
-      // Gemini may return JSON wrapped in markdown code blocks, so we need to clean it
-      let cleanedContent = content.trim();
-      
-      // Remove markdown code blocks if present
-      if (cleanedContent.startsWith("```json")) {
-        cleanedContent = cleanedContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-      } else if (cleanedContent.startsWith("```")) {
-        cleanedContent = cleanedContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
-      }
-
-      const planResponse: PlanResponse = JSON.parse(cleanedContent);
-      
-      // Validate the response structure
-      if (!planResponse.curriculum || !planResponse.tasks || !planResponse.assumptions) {
-        throw new Error("Invalid plan response structure");
-      }
-
-      if (!Array.isArray(planResponse.curriculum.topics)) {
-        throw new Error("Curriculum topics must be an array");
-      }
-
-      if (!Array.isArray(planResponse.tasks)) {
-        throw new Error("Tasks must be an array");
-      }
-
-      if (!Array.isArray(planResponse.assumptions)) {
-        throw new Error("Assumptions must be an array");
-      }
-
-      return planResponse;
-    } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
-      throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`);
-    }
-  } catch (error) {
-    console.error("Gemini API error:", error);
-    throw new Error(`Gemini API error: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
+
+  // If we get here, all model name variations failed
+  if (lastError) {
+    throw lastError;
+  }
+  throw new Error("All model name variations failed. Please check your GEMINI_API_KEY and model name.");
 }
 

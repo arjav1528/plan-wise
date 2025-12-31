@@ -22,4 +22,23 @@ export async function getTasksByProjectId(
   return { data, error };
 }
 
+/**
+ * Get completed tasks for a project (server-side)
+ */
+export async function getCompletedTasksByProjectId(
+  projectId: string
+): Promise<{
+  data: Task[] | null;
+  error: PostgrestError | null;
+}> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(DB_TABLES.TASKS)
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false });
+
+  return { data, error };
+}
 

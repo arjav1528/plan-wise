@@ -3,6 +3,7 @@ import { generatePlan } from "@/lib/ai/planner";
 import type { PlanRequest } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/auth-server";
+import { getCompletedTasksByProjectId } from "@/lib/supabase/tasks-server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,8 +33,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate the plan
-    const plan = await generatePlan(planRequest);
+    // Fetch completed tasks if project_id is provided
+    let completedTasks: Array<{ title: string; description: string | null }> = [];
+    if (body.project_id) {
+      const { data: tasks, error: tasksError } = await getCompletedTasksByProjectId(body.project_id);
+      if (tasksError) {
+        console.error("Error fetching completed tasks:", tasksError);
+        // Continue without completed tasks rather than failing
+      } else if (tasks && tasks.length > 0) {
+        completedTasks = tasks.map(task => ({
+          title: task.title,
+          description: task.description,
+        }));
+      }
+    }
+
+    // Generate today's plan
+    const plan = await generatePlan(planRequest, completedTasks);
 
     // If project_id is provided, save the curriculum
     if (body.project_id) {
