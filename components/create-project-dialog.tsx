@@ -39,7 +39,6 @@ export function CreateProjectDialog({
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
       setGoal("");
@@ -49,7 +48,6 @@ export function CreateProjectDialog({
     }
   }, [open]);
 
-  // Global paste handler for files when dialog is open
   useEffect(() => {
     if (!open) return;
 
@@ -117,7 +115,6 @@ export function CreateProjectDialog({
         throw new Error("User not authenticated");
       }
 
-      // Upload files to storage if any
       let fileUrls: string[] = [];
       if (files.length > 0) {
         try {
@@ -138,7 +135,6 @@ export function CreateProjectDialog({
         }
       }
 
-      // Prepare project data
       const projectData = {
         user_id: user.id,
         title: goal.trim(),
@@ -148,12 +144,7 @@ export function CreateProjectDialog({
         daily_hours: null,
       };
 
-      // Store file URLs
-      // Note: If your Project table has a file_urls field, use that instead
-      // For now, we'll store as JSON in description or you can add a separate field
       if (fileUrls.length > 0) {
-        // Store file URLs as JSON string in description
-        // In production, consider adding a file_urls JSONB field to the Project table
         const fileData = JSON.stringify(fileUrls);
         const fileInfo = `\n\n<!-- FILES: ${fileData} -->`;
         projectData.description = (projectData.description || '') + fileInfo;
@@ -165,13 +156,10 @@ export function CreateProjectDialog({
         throw error || new Error("Failed to create project");
       }
 
-      // Auto-generate plan for the first day
       setIsGeneratingPlan(true);
       try {
-        // For the first day, always generate a plan for a single day
         const timeframe = "1 day";
 
-        // Generate plan
         const planRequest = {
           goal: goal.trim(),
           timeframe: timeframe,
@@ -199,7 +187,6 @@ export function CreateProjectDialog({
 
         const planData = await planResponse.json();
         
-        // Apply plan (save curriculum and create tasks)
         const applyResponse = await fetch("/api/plan/apply", {
           method: "POST",
           headers: {
@@ -219,20 +206,17 @@ export function CreateProjectDialog({
         console.log("Plan generated and applied successfully");
       } catch (planError) {
         console.error("Error auto-generating plan:", planError);
-        // Show error but don't fail project creation
         alert(`Project created, but plan generation failed: ${planError instanceof Error ? planError.message : "Unknown error"}`);
       } finally {
         setIsGeneratingPlan(false);
       }
 
-      // Reset form
       setGoal("");
       setDescription("");
       setDeadline(null);
       setFiles([]);
       onOpenChange(false);
       
-      // Navigate to the project page
       if (project?.id) {
         window.location.href = `/dashboard/project/${project.id}`;
       } else {

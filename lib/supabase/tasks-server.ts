@@ -2,9 +2,6 @@ import { createClient } from "./server";
 import { DB_TABLES, type Task } from "../types";
 import type { PostgrestError } from "@supabase/supabase-js";
 
-/**
- * Get all tasks for a project (server-side)
- */
 export async function getTasksByProjectId(
   projectId: string
 ): Promise<{
@@ -22,9 +19,6 @@ export async function getTasksByProjectId(
   return { data, error };
 }
 
-/**
- * Get completed tasks for a project (server-side)
- */
 export async function getCompletedTasksByProjectId(
   projectId: string
 ): Promise<{

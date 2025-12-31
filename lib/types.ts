@@ -48,7 +48,6 @@ export interface Curriculum {
   generated_at: string | null; 
 }
 
-// AI Planning Types
 export type TopicPriority = "high" | "medium" | "low";
 
 export interface CurriculumTopic {

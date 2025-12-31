@@ -7,7 +7,6 @@ import { getCompletedTasksByProjectId } from "@/lib/supabase/tasks-server";
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
     const { user, error: authError } = await getCurrentUser();
     if (authError || !user) {
       return NextResponse.json(
@@ -33,13 +32,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch completed tasks if project_id is provided
     let completedTasks: Array<{ title: string; description: string | null }> = [];
     if (body.project_id) {
       const { data: tasks, error: tasksError } = await getCompletedTasksByProjectId(body.project_id);
       if (tasksError) {
         console.error("Error fetching completed tasks:", tasksError);
-        // Continue without completed tasks rather than failing
       } else if (tasks && tasks.length > 0) {
         completedTasks = tasks.map(task => ({
           title: task.title,
@@ -48,10 +45,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate today's plan
     const plan = await generatePlan(planRequest, completedTasks);
 
-    // If project_id is provided, save the curriculum
     if (body.project_id) {
       const supabase = await createClient();
       const { error: curriculumError } = await supabase
@@ -64,7 +59,6 @@ export async function POST(request: NextRequest) {
 
       if (curriculumError) {
         console.error("Error saving curriculum:", curriculumError);
-        // Don't fail the request if curriculum save fails, just log it
       }
     }
 

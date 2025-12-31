@@ -38,7 +38,6 @@ export function FileUpload({
       try {
         const newFiles: FileData[] = [];
         for (const file of fileArray) {
-          // Validate file size
           if (file.size > maxSizeMB * 1024 * 1024) {
             alert(
               `File ${file.name} is too large. Maximum size is ${maxSizeMB}MB.`

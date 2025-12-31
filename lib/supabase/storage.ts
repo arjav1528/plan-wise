@@ -30,7 +30,6 @@ export async function uploadProjectFiles(
       const response = await fetch(dataUrl);
       const blob = await response.blob();
 
-      // Get file extension from original filename or MIME type
       const fileExt = originalFileName.split(".").pop() || 
                      fileType.split("/")[1] || 
                      "bin";
@@ -91,7 +90,6 @@ export function getProjectFileUrl(filePath: string): string {
   return data.publicUrl;
 }
 
-// Legacy function names for backward compatibility
 export async function uploadProjectImages(
   imageDataUrls: string[],
   userId: string

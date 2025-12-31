@@ -9,9 +9,6 @@ export interface CreateCurriculumData {
   topics: Record<string, unknown>;
 }
 
-/**
- * Get curriculum for a project
- */
 export async function getCurriculumByProjectId(
   projectId: string
 ): Promise<{
@@ -30,9 +27,6 @@ export async function getCurriculumByProjectId(
   return { data, error };
 }
 
-/**
- * Create a new curriculum
- */
 export async function createCurriculum(
   curriculumData: CreateCurriculumData
 ): Promise<{
@@ -52,9 +46,6 @@ export async function createCurriculum(
   return { data, error };
 }
 
-/**
- * Update a curriculum
- */
 export async function updateCurriculum(
   curriculumId: string,
   topics: Record<string, unknown>

@@ -2,9 +2,6 @@ import { createClient } from "./server";
 import { DB_TABLES, type Curriculum } from "../types";
 import type { PostgrestError } from "@supabase/supabase-js";
 
-/**
- * Get curriculum for a project (server-side)
- */
 export async function getCurriculumByProjectId(
   projectId: string
 ): Promise<{
@@ -23,9 +20,6 @@ export async function getCurriculumByProjectId(
   return { data, error };
 }
 
-/**
- * Create a new curriculum (server-side)
- */
 export async function createCurriculum(
   projectId: string,
   topics: Record<string, unknown>

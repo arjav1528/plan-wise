@@ -21,9 +21,6 @@ export interface UpdateProjectData {
   is_active?: boolean;
 }
 
-/**
- * Get all projects for the current user
- */
 export async function getProjects(): Promise<{
   data: Project[] | null;
   error: PostgrestError | null;
@@ -37,9 +34,6 @@ export async function getProjects(): Promise<{
   return { data, error };
 }
 
-/**
- * Get a single project by ID
- */
 export async function getProjectById(
   projectId: string
 ): Promise<{
@@ -56,9 +50,6 @@ export async function getProjectById(
   return { data, error };
 }
 
-/**
- * Create a new project
- */
 export async function createProject(
   projectData: CreateProjectData
 ): Promise<{
@@ -75,9 +66,6 @@ export async function createProject(
   return { data, error };
 }
 
-/**
- * Update a project
- */
 export async function updateProject(
   projectId: string,
   updates: UpdateProjectData
@@ -96,9 +84,6 @@ export async function updateProject(
   return { data, error };
 }
 
-/**
- * Delete a project
- */
 export async function deleteProject(
   projectId: string
 ): Promise<{

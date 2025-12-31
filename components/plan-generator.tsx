@@ -93,7 +93,6 @@ export function PlanGenerator({
     setError(null);
 
     try {
-      // Save curriculum
       const { error: curriculumError } = await createCurriculum({
         project_id: projectId,
         topics: plan.curriculum,
@@ -103,10 +102,8 @@ export function PlanGenerator({
         console.error("Error saving curriculum:", curriculumError);
       }
 
-      // Create tasks from plan
       for (let i = 0; i < plan.tasks.length; i++) {
         const task = plan.tasks[i];
-        // Include tags in description if present
         const description = task.tags.length > 0
           ? `${task.description}\n\nTags: ${task.tags.join(", ")}`
           : task.description;

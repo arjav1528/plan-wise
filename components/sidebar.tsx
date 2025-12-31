@@ -52,7 +52,6 @@ export function Sidebar() {
 
     return (
         <aside className="hidden w-64 flex-col border-r bg-muted/30 md:flex">
-            {/* Header */}
             <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                 <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                     <BookOpen className="h-6 w-6" />
@@ -60,7 +59,6 @@ export function Sidebar() {
                 </Link>
             </div>
 
-            {/* Main Content */}
             <div className="flex-1 overflow-auto py-4">
                 <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
                     <div className="mb-4 px-2">
@@ -80,7 +78,6 @@ export function Sidebar() {
                         </h3>
                         <div className="space-y-1">
                             {isLoadingProjects ? (
-                                // Loading skeleton for projects
                                 Array.from({ length: 3 }).map((_, i) => (
                                     <div
                                         key={i}
@@ -114,10 +111,8 @@ export function Sidebar() {
                 </nav>
             </div>
 
-            {/* Footer */}
             <div className="mt-auto border-t p-4">
                 <div className="mb-4 flex items-center gap-3 pl-2">
-                    {/* Simple Avatar Placeholder */}
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
                         U
                     </div>

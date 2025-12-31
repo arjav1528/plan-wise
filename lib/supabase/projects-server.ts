@@ -2,9 +2,6 @@ import { createClient } from "./server";
 import { DB_TABLES, type Project } from "../types";
 import type { PostgrestError } from "@supabase/supabase-js";
 
-/**
- * Get a single project by ID (server-side)
- */
 export async function getProjectById(
   projectId: string
 ): Promise<{

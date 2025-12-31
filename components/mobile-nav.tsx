@@ -85,7 +85,6 @@ export function MobileNav() {
                                 </h3>
                                 <div className="space-y-1">
                                     {isLoadingProjects ? (
-                                        // Loading skeleton for projects
                                         Array.from({ length: 3 }).map((_, i) => (
                                             <div
                                                 key={i}
@@ -114,10 +113,8 @@ export function MobileNav() {
                             </div>
                         </div>
 
-                        {/* Footer */}
                         <div className="mt-auto border-t pt-4">
                             <div className="mb-4 flex items-center gap-3 pl-2">
-                                {/* Simple Avatar Placeholder */}
                                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
                                     U
                                 </div>

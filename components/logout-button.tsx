@@ -19,6 +19,4 @@ export function LogoutButton() {
                     Sign Out
                 </Button>
   )
-
-  // return <Button onClick={logout}>Logout</Button>;
 }

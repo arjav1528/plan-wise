@@ -83,7 +83,6 @@ function buildUserPrompt(request: PlanRequest, completedTasks: Array<{ title: st
   let prompt = `Generate TODAY'S plan (${today}) for the following goal:\n\n`;
   prompt += `Goal: ${request.goal}\n\n`;
 
-  // Include completed tasks to avoid repetition
   if (completedTasks.length > 0) {
     prompt += `IMPORTANT: The following tasks have already been completed. DO NOT include them in today's plan:\n`;
     completedTasks.forEach((task, index) => {
@@ -129,7 +128,6 @@ export async function generatePlan(
     throw new Error("GEMINI_API_KEY or GOOGLE_GEMINI_API environment variable is not set");
   }
 
-  // Trim and validate API key
   const trimmedApiKey = apiKey.trim();
   if (!trimmedApiKey) {
     throw new Error("GEMINI_API_KEY is empty");
@@ -138,7 +136,6 @@ export async function generatePlan(
   let modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
   const userPrompt = buildUserPrompt(request, completedTasks);
 
-  // Combine system prompt and user prompt for Gemini
   const jsonSchema = `\n\nRequired JSON Output Format (for TODAY'S plan only):
 {
   "curriculum": {
@@ -172,8 +169,6 @@ IMPORTANT:
 
   const fullPrompt = `${PLANWISE_SYSTEM_PROMPT}${jsonSchema}\n\n${userPrompt}\n\nRemember: Output ONLY valid JSON matching the schema above, no markdown, no commentary, no extra fields. Generate TODAY'S plan only.`;
 
-  // Try different model name formats if the default doesn't work
-  // Updated to use valid v1beta models (removed deprecated gemini-pro)
   const modelNameVariations = new Set([
     modelName,
     `${modelName}-latest`,
@@ -188,7 +183,6 @@ IMPORTANT:
     "gemini-2.0-flash-thinking-exp-001",
   ]);
 
-  // Prepare the request body
   const requestBody = {
     contents: [
       {
@@ -210,19 +204,14 @@ IMPORTANT:
 
   let lastError: Error | null = null;
 
-  // Try each model name variation
-  // Also try v1 API version as fallback if v1beta doesn't work
   const apiVersions = ["v1beta", "v1"];
   
   for (const apiVersion of apiVersions) {
     for (const tryModelName of modelNameVariations) {
-      // Construct the API endpoint
-      // URL encode the API key to handle any special characters
       const encodedApiKey = encodeURIComponent(trimmedApiKey);
       const apiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${tryModelName}:generateContent?key=${encodedApiKey}`;
 
       try {
-        // Make the API request
         const response = await fetch(apiUrl, {
           method: "POST",
           headers: {
@@ -239,13 +228,10 @@ IMPORTANT:
             const errorJson = JSON.parse(errorText);
             console.error(`Gemini API error for ${apiVersion}/${tryModelName}:`, JSON.stringify(errorJson, null, 2));
           
-          // Extract detailed error message
           const apiError = errorJson.error || errorJson;
           errorMessage = apiError.message || apiError.status || errorText;
           
-          // Check for specific error patterns
           if (errorMessage.includes("pattern") || errorMessage.includes("invalid") || errorMessage.includes("format")) {
-            // This might be an API key or model name format issue
             errorMessage = `API validation error: ${errorMessage}. Please check your GEMINI_API_KEY format and model name.`;
           }
           
@@ -256,25 +242,20 @@ IMPORTANT:
             lastError = new Error(`Gemini API request failed: ${response.status} ${response.statusText}. ${errorMessage}`);
           }
           
-          // If it's a 404, try the next model name or API version
           if (response.status === 404) {
             continue;
           }
           
-          // For 400 errors (bad request), it might be a format issue - try next model
           if (response.status === 400) {
             console.warn(`Bad request for ${apiVersion}/${tryModelName}, trying next variation...`);
             continue;
           }
           
-          // For other errors, throw immediately
           throw lastError;
         }
 
-        // Success! Process the response
         const data = await response.json();
 
-        // Extract content from the response
         const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!content) {
@@ -282,10 +263,8 @@ IMPORTANT:
         }
 
         try {
-          // Gemini may return JSON wrapped in markdown code blocks, so we need to clean it
           let cleanedContent = content.trim();
           
-          // Remove markdown code blocks if present
           if (cleanedContent.startsWith("```json")) {
             cleanedContent = cleanedContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
           } else if (cleanedContent.startsWith("```")) {
@@ -294,7 +273,6 @@ IMPORTANT:
 
           const planResponse: PlanResponse = JSON.parse(cleanedContent);
           
-          // Log the response structure for debugging
           console.log("Parsed plan response structure:", {
             hasCurriculum: !!planResponse.curriculum,
             hasTasks: !!planResponse.tasks,
@@ -304,7 +282,6 @@ IMPORTANT:
             assumptionsType: Array.isArray(planResponse.assumptions),
           });
           
-          // Validate the response structure with detailed error messages
           if (!planResponse.curriculum) {
             console.error("Missing curriculum in response. Response keys:", Object.keys(planResponse));
             throw new Error("Invalid plan response structure: missing 'curriculum' field");
@@ -320,7 +297,6 @@ IMPORTANT:
             throw new Error("Invalid plan response structure: missing 'assumptions' field");
           }
 
-          // Validate curriculum structure
           if (typeof planResponse.curriculum !== "object") {
             throw new Error("Invalid plan response structure: 'curriculum' must be an object");
           }
@@ -342,7 +318,6 @@ IMPORTANT:
             throw new Error(`Invalid plan response structure: 'assumptions' must be an array, got ${typeof planResponse.assumptions}`);
           }
 
-          // Ensure overview exists (it's optional in the type but we should handle it)
           if (!planResponse.curriculum.overview) {
             planResponse.curriculum.overview = "Generated curriculum for the specified goal";
           }
@@ -354,18 +329,15 @@ IMPORTANT:
           throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`);
         }
       } catch (error) {
-        // If this is not a 404 or we've exhausted all model names, throw the error
         if (error instanceof Error && !error.message.includes("404")) {
           throw error;
         }
-        // Otherwise, continue to next model name
         lastError = error instanceof Error ? error : new Error("Unknown error");
         continue;
       }
     }
   }
 
-  // If we get here, all model name variations failed
   if (lastError) {
     throw lastError;
   }

@@ -5,7 +5,6 @@ import type { PlanResponse } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
     const { user, error: authError } = await getCurrentUser();
     if (authError || !user) {
       return NextResponse.json(
@@ -26,7 +25,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Save curriculum
     const { error: curriculumError } = await supabase
       .from("curriculums")
       .insert({
@@ -39,7 +37,6 @@ export async function POST(request: NextRequest) {
       console.error("Error saving curriculum:", curriculumError);
     }
 
-    // Create tasks from plan
     const tasks = plan.tasks.map((task, index) => ({
       project_id,
       title: task.title,

@@ -23,9 +23,6 @@ export interface UpdateTaskData {
   order_index?: number | null;
 }
 
-/**
- * Get all tasks for a project
- */
 export async function getTasksByProjectId(
   projectId: string
 ): Promise<{
@@ -43,9 +40,6 @@ export async function getTasksByProjectId(
   return { data, error };
 }
 
-/**
- * Get a single task by ID
- */
 export async function getTaskById(
   taskId: string
 ): Promise<{
@@ -62,9 +56,6 @@ export async function getTaskById(
   return { data, error };
 }
 
-/**
- * Create a new task
- */
 export async function createTask(
   taskData: CreateTaskData
 ): Promise<{
@@ -81,9 +72,6 @@ export async function createTask(
   return { data, error };
 }
 
-/**
- * Update a task
- */
 export async function updateTask(
   taskId: string,
   updates: UpdateTaskData
@@ -102,9 +90,6 @@ export async function updateTask(
   return { data, error };
 }
 
-/**
- * Delete a task
- */
 export async function deleteTask(
   taskId: string
 ): Promise<{

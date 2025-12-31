@@ -22,14 +22,12 @@ interface ProjectWorkspaceProps {
     curriculum?: Curriculum | null;
 }
 
-// Helper function to format date
 function formatDate(dateString: string | null): string {
     if (!dateString) return "No deadline";
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-// Helper function to format hours
 function formatHours(hours: number | null): string {
     if (!hours) return "No estimate";
     if (hours < 1) {
@@ -44,7 +42,6 @@ function formatHours(hours: number | null): string {
     return `${wholeHours}h ${minutes}m`;
 }
 
-// Calculate project status based on deadline and progress
 function calculateProjectStatus(project: Project, tasks: Task[]): "on-track" | "behind" | "ahead" {
     if (!project.deadline) return "on-track";
     
@@ -56,7 +53,6 @@ function calculateProjectStatus(project: Project, tasks: Task[]): "on-track" | "
     const completedTasks = tasks.filter(t => t.status === "completed").length;
     const progress = totalTasks > 0 ? completedTasks / totalTasks : 0;
     
-    // Simple heuristic: if we're more than 50% through time but less than 50% through tasks, we're behind
     const totalDays = Math.ceil((deadline.getTime() - new Date(project.created_at || now).getTime()) / (1000 * 60 * 60 * 24));
     const timeProgress = totalDays > 0 ? (totalDays - daysRemaining) / totalDays : 0;
     
@@ -65,7 +61,6 @@ function calculateProjectStatus(project: Project, tasks: Task[]): "on-track" | "
     return "on-track";
 }
 
-// Get current week days
 function getCurrentWeekDays(): Array<{ day: string; date: string; dateObj: Date; active: boolean }> {
     const today = new Date();
     const currentDay = today.getDay();
@@ -124,7 +119,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
     const projectStatus = calculateProjectStatus(project, tasks);
     const weekDays = getCurrentWeekDays();
     
-    // Refresh tasks from the database
     const refreshTasks = async () => {
         const { data, error } = await getTasksByProjectId(project.id);
         if (!error && data) {
@@ -132,13 +126,10 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         }
     };
 
-    // Refresh tasks on mount and when project changes
     useEffect(() => {
         refreshTasks();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [project.id]);
 
-    // Handle create task
     const handleCreateTask = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
@@ -164,7 +155,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         setIsLoading(false);
     };
 
-    // Handle update task status
     const handleUpdateTaskStatus = async (taskId: string, currentStatus: string | null) => {
         const newStatus = currentStatus === "completed" ? "pending" : "completed";
         
@@ -178,7 +168,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         }
     };
 
-    // Handle delete task
     const handleDeleteTask = async (taskId: string) => {
         if (!confirm("Are you sure you want to delete this task?")) {
             return;
@@ -194,7 +183,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         }
     };
 
-    // Handle update project
     const handleUpdateProject = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsUpdatingProject(true);
@@ -220,11 +208,8 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         setIsUpdatingProject(false);
     };
     
-    // Filter tasks for today (you might want to filter by daily_logs in the future)
-    // For now, show all pending and some completed tasks
     const todayTasks = tasks.filter(t => t.status === "pending" || t.status === "completed");
     
-    // Sort tasks: pending first, then completed, then by order_index
     const sortedTasks = [...todayTasks].sort((a, b) => {
         if (a.status === "completed" && b.status !== "completed") return 1;
         if (a.status !== "completed" && b.status === "completed") return -1;
@@ -233,7 +218,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
 
     return (
         <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header */}
             <header className="flex h-16 items-center justify-between border-b px-6">
                 <div>
                     <h1 className="text-lg font-semibold">{project.title}</h1>
@@ -334,7 +318,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
             </header>
 
             <div className="flex-1 overflow-auto p-6">
-                {/* Today's Plan - Curriculum */}
                 {curriculum && curriculum.topics && (
                     <div className="mb-8">
                         <Card>
@@ -419,7 +402,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                     </div>
                 )}
 
-                {/* Calendar Preview */}
                 <div className="mb-8">
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="text-sm font-semibold tracking-tight">This Week</h2>
@@ -451,7 +433,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                     </div>
                 </div>
 
-                {/* Today's Tasks */}
                 <div>
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="text-sm font-semibold tracking-tight">Today's Focus</h2>

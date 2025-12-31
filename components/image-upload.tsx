@@ -30,11 +30,8 @@ export function ImageUpload({
 
       setUploading(true);
       try {
-        // Convert to data URLs for preview and storage
-        // The parent component will handle uploading to Supabase Storage
         const newImages: string[] = [];
         for (const file of imageFiles) {
-          // Validate file size (max 5MB)
           if (file.size > 5 * 1024 * 1024) {
             alert(`File ${file.name} is too large. Maximum size is 5MB.`);
             continue;

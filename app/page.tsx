@@ -7,7 +7,6 @@ import { Suspense } from "react";
 async function AuthRedirect() {
   const { data } = await getAuthClaims();
 
-  // If user is authenticated, redirect to dashboard
   if (data?.claims) {
     redirect("/dashboard");
   }

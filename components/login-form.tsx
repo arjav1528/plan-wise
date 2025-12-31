@@ -34,7 +34,6 @@ export function LoginForm({
     try {
       const { error } = await signIn({ email, password });
       if (error) throw error;
-      // Redirect to dashboard - use window.location for immediate redirect without flash
       window.location.href = "/dashboard";
       return;
     } catch (error: unknown) {
