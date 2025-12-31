@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon, ChevronDown } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createProject } from "@/lib/supabase/projects";
 import { uploadProjectFiles } from "@/lib/supabase/storage";
@@ -20,13 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FileUpload } from "@/components/file-upload";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { DatePickerComponent } from "@/components/ui/date-picker";
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -41,11 +33,10 @@ export function CreateProjectDialog({
 }: CreateProjectDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [deadline, setDeadline] = useState<Date | undefined>(undefined);
+  const [deadline, setDeadline] = useState<Date | null>(null);
   const [dailyHours, setDailyHours] = useState("");
   const [files, setFiles] = useState<FileData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [deadlineOpen, setDeadlineOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Reset form when dialog closes
@@ -231,41 +222,13 @@ export function CreateProjectDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="deadline">Deadline</Label>
-                <Popover open={deadlineOpen} onOpenChange={setDeadlineOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="deadline"
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !deadline && "text-muted-foreground"
-                      )}
-                      disabled={isLoading}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {deadline ? format(deadline, "PPP") : <span>Pick a date</span>}
-                      <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={deadline}
-                      onSelect={(date) => {
-                        setDeadline(date);
-                        setDeadlineOpen(false);
-                      }}
-                      disabled={(date) => {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const dateToCheck = new Date(date);
-                        dateToCheck.setHours(0, 0, 0, 0);
-                        return dateToCheck < today;
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <DatePickerComponent
+                  selected={deadline}
+                  onChange={(date) => setDeadline(date)}
+                  placeholder="Pick a date"
+                  disabled={isLoading}
+                  minDate={new Date()}
+                />
               </div>
 
               <div className="grid gap-2">
