@@ -255,7 +255,13 @@ export function CreateProjectDialog({
                         setDeadline(date);
                         setDeadlineOpen(false);
                       }}
-                      disabled={(date) => date < new Date()}
+                      disabled={(date) => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dateToCheck = new Date(date);
+                        dateToCheck.setHours(0, 0, 0, 0);
+                        return dateToCheck < today;
+                      }}
                       initialFocus
                     />
                   </PopoverContent>
