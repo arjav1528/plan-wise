@@ -15,6 +15,8 @@ import { type Project, type Task, type Curriculum, type PlanResponse } from "@/l
 import { createTask, updateTask, deleteTask, getTasksByProjectId } from "@/lib/supabase/tasks";
 import { updateProject } from "@/lib/supabase/projects";
 import { PostgrestError } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
+import { DB_TABLES, type DailyLog } from "@/lib/types";
 
 interface ProjectWorkspaceProps {
     project: Project;
@@ -62,11 +64,13 @@ function calculateProjectStatus(project: Project, tasks: Task[]): "on-track" | "
     return "on-track";
 }
 
-function getCurrentWeekDays(): Array<{ day: string; date: string; dateObj: Date; active: boolean }> {
+function getCurrentWeekDays(selectedDate: Date, weekOffset: number): Array<{ day: string; date: string; dateObj: Date; active: boolean; isSelected: boolean; isFuture: boolean }> {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const currentDay = today.getDay();
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - currentDay + (currentDay === 0 ? -6 : 1)); // Monday as start
+    startOfWeek.setDate(startOfWeek.getDate() + (weekOffset * 7)); // Apply week offset
     
     const days = [];
     const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -74,13 +78,18 @@ function getCurrentWeekDays(): Array<{ day: string; date: string; dateObj: Date;
     for (let i = 0; i < 7; i++) {
         const date = new Date(startOfWeek);
         date.setDate(startOfWeek.getDate() + i);
+        date.setHours(0, 0, 0, 0);
         const isToday = date.toDateString() === today.toDateString();
+        const isSelected = date.toDateString() === selectedDate.toDateString();
+        const isFuture = date > today;
         
         days.push({
             day: dayNames[i],
             date: date.getDate().toString(),
             dateObj: date,
             active: isToday,
+            isSelected,
+            isFuture,
         });
     }
     
@@ -95,6 +104,14 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isUpdatingProject, setIsUpdatingProject] = useState(false);
+    const [selectedDate, setSelectedDate] = useState<Date>(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return today;
+    });
+    const [weekOffset, setWeekOffset] = useState(0);
+    const [dailyLogs, setDailyLogs] = useState<Record<string, DailyLog>>({});
+    const [isLoadingLogs, setIsLoadingLogs] = useState(false);
     const [createTaskForm, setCreateTaskForm] = useState({
         title: "",
         estimated_hours: "",
@@ -118,7 +135,35 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
     }, [project]);
 
     const projectStatus = calculateProjectStatus(project, tasks);
-    const weekDays = getCurrentWeekDays();
+    const weekDays = getCurrentWeekDays(selectedDate, weekOffset);
+    
+    // Check if the current week contains any future dates
+    const hasFutureDates = weekDays.some(d => d.isFuture);
+    const isCurrentWeek = weekOffset === 0;
+    
+    const handlePreviousWeek = () => {
+        setWeekOffset(weekOffset - 1);
+    };
+    
+    const handleNextWeek = () => {
+        // Don't allow navigation to future weeks
+        if (weekOffset >= 0) {
+            return;
+        }
+        setWeekOffset(weekOffset + 1);
+    };
+
+    const handleDateSelect = (date: Date, isFuture: boolean) => {
+        // Don't allow selection of future dates
+        if (isFuture) {
+            return;
+        }
+        // Create a new Date object to ensure it's a fresh instance
+        const newDate = new Date(date);
+        // Reset time to start of day for consistent comparison
+        newDate.setHours(0, 0, 0, 0);
+        setSelectedDate(newDate);
+    };
     
     const refreshTasks = async () => {
         const { data, error } = await getTasksByProjectId(project.id);
@@ -130,6 +175,49 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
     useEffect(() => {
         refreshTasks();
     }, [project.id]);
+
+    // Fetch daily logs for the selected date
+    useEffect(() => {
+        const fetchDailyLog = async () => {
+            const dateKey = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Only fetch logs for past dates
+            if (dateKey >= today) {
+                return;
+            }
+
+            // Check if we already have this log
+            if (dailyLogs[dateKey]) {
+                return;
+            }
+
+            setIsLoadingLogs(true);
+            try {
+                const supabase = createClient();
+                const { data, error } = await supabase
+                    .from(DB_TABLES.DAILY_LOGS)
+                    .select("*")
+                    .eq("project_id", project.id)
+                    .eq("log_date", dateKey)
+                    .maybeSingle();
+
+                if (!error && data) {
+                    setDailyLogs(prev => ({
+                        ...prev,
+                        [dateKey]: data
+                    }));
+                }
+            } catch (error) {
+                console.error("Error fetching daily log:", error);
+            } finally {
+                setIsLoadingLogs(false);
+            }
+        };
+
+        fetchDailyLog();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedDate, project.id]);
 
     const handleCreateTask = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -209,9 +297,36 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         setIsUpdatingProject(false);
     };
     
-    const todayTasks = tasks.filter(t => t.status === "pending" || t.status === "completed");
+    // Get tasks for the selected date
+    const getTasksForDate = (date: Date): Task[] => {
+        // Normalize dates to start of day for comparison
+        const selectedDateNormalized = new Date(date);
+        selectedDateNormalized.setHours(0, 0, 0, 0);
+        const dateKey = selectedDateNormalized.toISOString().split('T')[0];
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayKey = today.toISOString().split('T')[0];
+        
+        const dailyLog = dailyLogs[dateKey];
+
+        // For today and future dates, show all pending/completed tasks
+        if (dateKey >= todayKey) {
+            return tasks.filter(t => t.status === "pending" || t.status === "completed");
+        }
+
+        // For past dates, show tasks that were completed on that date (from daily log)
+        if (dailyLog && dailyLog.completed_task_ids && dailyLog.completed_task_ids.length > 0) {
+            return tasks.filter(t => dailyLog.completed_task_ids?.includes(t.id));
+        }
+
+        // If no daily log exists for past date, show empty
+        return [];
+    };
+
+    const displayedTasks = getTasksForDate(selectedDate);
     
-    const sortedTasks = [...todayTasks].sort((a, b) => {
+    const sortedTasks = [...displayedTasks].sort((a, b) => {
         if (a.status === "completed" && b.status !== "completed") return 1;
         if (a.status !== "completed" && b.status === "completed") return -1;
         return (a.order_index || 0) - (b.order_index || 0);
@@ -407,11 +522,17 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="text-sm font-semibold tracking-tight">This Week</h2>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="icon" className="h-6 w-6">
+                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={handlePreviousWeek}>
                                 <span className="sr-only">Previous</span>
                                 <span className="h-3 w-3" >{"<"}</span>
                             </Button>
-                            <Button variant="outline" size="icon" className="h-6 w-6">
+                            <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-6 w-6" 
+                                onClick={handleNextWeek}
+                                disabled={isCurrentWeek}
+                            >
                                 <span className="sr-only">Next</span>
                                 <span className="h-3 w-3" >{">"}</span>
                             </Button>
@@ -421,14 +542,19 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                         {weekDays.map((d) => (
                             <div
                                 key={`${d.day}-${d.date}`}
+                                onClick={() => handleDateSelect(d.dateObj, d.isFuture)}
                                 className={cn(
-                                    "flex flex-col items-center justify-center rounded-lg border bg-card py-3 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer",
-                                    d.active && "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                                    "flex flex-col items-center justify-center rounded-lg border bg-card py-3 text-sm shadow-sm transition-colors",
+                                    d.isFuture 
+                                        ? "opacity-50 cursor-not-allowed" 
+                                        : "hover:bg-accent hover:text-accent-foreground cursor-pointer",
+                                    d.isSelected && !d.isFuture && "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                                    !d.isSelected && d.active && !d.isFuture && "border-primary/50"
                                 )}
                             >
                                 <span className="text-xs opacity-70 mb-1">{d.day}</span>
                                 <span className="font-bold">{d.date}</span>
-                                {d.active && <div className="mt-1 h-1 w-1 rounded-full bg-white" />}
+                                {d.active && !d.isFuture && <div className="mt-1 h-1 w-1 rounded-full bg-white" />}
                             </div>
                         ))}
                     </div>
@@ -436,7 +562,11 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
 
                 <div>
                     <div className="mb-4 flex items-center justify-between">
-                        <h2 className="text-sm font-semibold tracking-tight">Today's Focus</h2>
+                        <h2 className="text-sm font-semibold tracking-tight">
+                            {selectedDate.toDateString() === new Date().toDateString() 
+                                ? "Today's Focus" 
+                                : selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + "'s Focus"}
+                        </h2>
                         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
