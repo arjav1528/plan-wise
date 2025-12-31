@@ -192,24 +192,35 @@ export function CreateProjectDialog({
           }),
         });
 
-        if (planResponse.ok) {
-          const planData = await planResponse.json();
-          
-          // Save curriculum
-          await fetch("/api/plan/apply", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              project_id: project.id,
-              plan: planData,
-            }),
-          });
+        if (!planResponse.ok) {
+          const errorData = await planResponse.json();
+          throw new Error(errorData.error || "Failed to generate plan");
         }
+
+        const planData = await planResponse.json();
+        
+        // Apply plan (save curriculum and create tasks)
+        const applyResponse = await fetch("/api/plan/apply", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            project_id: project.id,
+            plan: planData,
+          }),
+        });
+
+        if (!applyResponse.ok) {
+          const errorData = await applyResponse.json();
+          throw new Error(errorData.error || "Failed to apply plan");
+        }
+
+        console.log("Plan generated and applied successfully");
       } catch (planError) {
         console.error("Error auto-generating plan:", planError);
-        // Don't fail project creation if plan generation fails
+        // Show error but don't fail project creation
+        alert(`Project created, but plan generation failed: ${planError instanceof Error ? planError.message : "Unknown error"}`);
       } finally {
         setIsGeneratingPlan(false);
       }
@@ -220,7 +231,13 @@ export function CreateProjectDialog({
       setDeadline(null);
       setFiles([]);
       onOpenChange(false);
-      onProjectCreated?.();
+      
+      // Navigate to the project page
+      if (project?.id) {
+        window.location.href = `/dashboard/project/${project.id}`;
+      } else {
+        onProjectCreated?.();
+      }
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to create project. Please try again.");

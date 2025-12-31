@@ -131,6 +131,12 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
         }
     };
 
+    // Refresh tasks on mount and when project changes
+    useEffect(() => {
+        refreshTasks();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [project.id]);
+
     // Handle create task
     const handleCreateTask = async (e: React.FormEvent) => {
         e.preventDefault();
