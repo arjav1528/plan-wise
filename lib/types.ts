@@ -48,6 +48,45 @@ export interface Curriculum {
   generated_at: string | null; 
 }
 
+// AI Planning Types
+export type TopicPriority = "high" | "medium" | "low";
+
+export interface CurriculumTopic {
+  name: string;
+  priority: TopicPriority;
+  estimated_hours: number;
+  prerequisites: string[];
+  description: string;
+}
+
+export interface PlanTask {
+  title: string;
+  description: string;
+  estimated_hours: number;
+  tags: string[];
+}
+
+export interface PlanResponse {
+  curriculum: {
+    overview: string;
+    topics: CurriculumTopic[];
+  };
+  tasks: PlanTask[];
+  assumptions: string[];
+}
+
+export interface PlanRequest {
+  goal: string;
+  timeframe?: string;
+  prior_knowledge?: string;
+  daily_availability?: number;
+  completed_topics?: string[];
+  project_metadata?: {
+    deadline?: string;
+    focus_level?: string;
+  };
+}
+
 export interface PushSubscription {
   id: string; 
   user_id: string; 

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { type Project, type Task, type PostgrestError } from "@/lib/types";
 import { createTask, updateTask, deleteTask, getTasksByProjectId } from "@/lib/supabase/tasks";
 import { updateProject } from "@/lib/supabase/projects";
+import { PlanGenerator } from "@/components/plan-generator";
 
 interface ProjectWorkspaceProps {
     project: Project;
@@ -363,13 +364,21 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                 <div>
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="text-sm font-semibold tracking-tight">Today's Focus</h2>
-                        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
-                                    <Plus className="h-3 w-3" />
-                                    Add Task
-                                </Button>
-                            </DialogTrigger>
+                        <div className="flex items-center gap-2">
+                            <PlanGenerator
+                                projectId={project.id}
+                                projectTitle={project.title}
+                                projectDeadline={project.deadline}
+                                projectDailyHours={project.daily_hours}
+                                onPlanGenerated={refreshTasks}
+                            />
+                            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
+                                        <Plus className="h-3 w-3" />
+                                        Add Task
+                                    </Button>
+                                </DialogTrigger>
                             <DialogContent>
                                 <form onSubmit={handleCreateTask}>
                                     <DialogHeader>
@@ -426,6 +435,7 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                                 </form>
                             </DialogContent>
                         </Dialog>
+                        </div>
                     </div>
 
                     {tasksError && (
