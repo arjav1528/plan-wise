@@ -1,6 +1,7 @@
 import { ProjectWorkspace } from "@/components/dashboard/project-view";
 import { getProjectById } from "@/lib/supabase/projects-server";
 import { getTasksByProjectId } from "@/lib/supabase/tasks-server";
+import { getCurriculumByProjectId } from "@/lib/supabase/curriculum-server";
 
 export default async function ProjectPage({
     params,
@@ -9,9 +10,10 @@ export default async function ProjectPage({
 }) {
     const { projectId } = await params;
 
-    const [projectData, tasksData] = await Promise.all([
+    const [projectData, tasksData, curriculumData] = await Promise.all([
         getProjectById(projectId),
         getTasksByProjectId(projectId),
+        getCurriculumByProjectId(projectId),
     ]);
 
     if (projectData.error) {
@@ -26,6 +28,7 @@ export default async function ProjectPage({
             project={projectData.data} 
             tasks={tasksData.data || []}
             tasksError={tasksData.error}
+            curriculum={curriculumData.data}
         />
     );
 }

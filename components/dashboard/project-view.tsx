@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, MoreHorizontal, Plus, Trash2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { type Project, type Task, type PostgrestError } from "@/lib/types";
+import { type Project, type Task, type PostgrestError, type Curriculum, type PlanResponse } from "@/lib/types";
 import { createTask, updateTask, deleteTask, getTasksByProjectId } from "@/lib/supabase/tasks";
 import { updateProject } from "@/lib/supabase/projects";
 
@@ -19,6 +19,7 @@ interface ProjectWorkspaceProps {
     project: Project;
     tasks: Task[];
     tasksError?: PostgrestError | null;
+    curriculum?: Curriculum | null;
 }
 
 // Helper function to format date
@@ -90,7 +91,7 @@ function getCurrentWeekDays(): Array<{ day: string; date: string; dateObj: Date;
     return days;
 }
 
-export function ProjectWorkspace({ project: initialProject, tasks: initialTasks, tasksError }: ProjectWorkspaceProps) {
+export function ProjectWorkspace({ project: initialProject, tasks: initialTasks, tasksError, curriculum }: ProjectWorkspaceProps) {
     const router = useRouter();
     const [project, setProject] = useState<Project>(initialProject);
     const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -333,6 +334,91 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
             </header>
 
             <div className="flex-1 overflow-auto p-6">
+                {/* Today's Plan - Curriculum */}
+                {curriculum && curriculum.topics && (
+                    <div className="mb-8">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5 text-primary" />
+                                    <CardTitle>Today's Plan</CardTitle>
+                                </div>
+                                {curriculum.generated_at && (
+                                    <CardDescription>
+                                        Generated on {new Date(curriculum.generated_at).toLocaleDateString()}
+                                    </CardDescription>
+                                )}
+                            </CardHeader>
+                            <CardContent>
+                                {(() => {
+                                    try {
+                                        const curriculumData = curriculum.topics as PlanResponse["curriculum"];
+                                        return (
+                                            <div className="space-y-4">
+                                                {curriculumData.overview && (
+                                                    <div className="space-y-2">
+                                                        <h3 className="text-sm font-semibold">Overview</h3>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            {curriculumData.overview}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {curriculumData.topics && curriculumData.topics.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <h3 className="text-sm font-semibold">
+                                                            Topics ({curriculumData.topics.length})
+                                                        </h3>
+                                                        <div className="grid gap-3">
+                                                            {curriculumData.topics.map((topic, idx) => (
+                                                                <div
+                                                                    key={idx}
+                                                                    className="p-3 border rounded-lg text-sm"
+                                                                >
+                                                                    <div className="font-medium">{topic.name}</div>
+                                                                    <div className="text-muted-foreground text-xs mt-1">
+                                                                        {topic.description}
+                                                                    </div>
+                                                                    <div className="flex gap-2 mt-2 text-xs">
+                                                                        <span className={cn(
+                                                                            "px-2 py-1 rounded",
+                                                                            topic.priority === "high"
+                                                                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                                                : topic.priority === "medium"
+                                                                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                                                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                                                        )}>
+                                                                            {topic.priority} priority
+                                                                        </span>
+                                                                        <span className="px-2 py-1 bg-muted rounded">
+                                                                            ~{topic.estimated_hours}h
+                                                                        </span>
+                                                                        {topic.prerequisites && topic.prerequisites.length > 0 && (
+                                                                            <span className="px-2 py-1 bg-muted rounded">
+                                                                                Requires: {topic.prerequisites.join(", ")}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    } catch (error) {
+                                        console.error("Error parsing curriculum:", error);
+                                        return (
+                                            <p className="text-sm text-muted-foreground">
+                                                Unable to display curriculum. Please check the data format.
+                                            </p>
+                                        );
+                                    }
+                                })()}
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
                 {/* Calendar Preview */}
                 <div className="mb-8">
                     <div className="mb-4 flex items-center justify-between">
