@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { PlanRequest, PlanResponse } from "../types";
 
 const PLANWISE_SYSTEM_PROMPT = `You are Planwise, an intelligent planning assistant embedded inside a productivity application.
@@ -107,92 +108,79 @@ function buildUserPrompt(request: PlanRequest): string {
 }
 
 export async function generatePlan(request: PlanRequest): Promise<PlanResponse> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API;
   
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is not set");
+    throw new Error("GEMINI_API_KEY or GOOGLE_GEMINI_API environment variable is not set");
   }
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash-001";
   const userPrompt = buildUserPrompt(request);
 
   // Combine system prompt and user prompt for Gemini
   const fullPrompt = `${PLANWISE_SYSTEM_PROMPT}\n\n${userPrompt}\n\nRemember: Output ONLY valid JSON, no markdown, no commentary.`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: fullPrompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json",
-        },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API error: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!content) {
-    throw new Error("No content in Gemini response");
-  }
+  // Initialize Google Generative AI
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+      temperature: 0.3,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+      responseMimeType: "application/json",
+    },
+  });
 
   try {
-    // Gemini may return JSON wrapped in markdown code blocks, so we need to clean it
-    let cleanedContent = content.trim();
-    
-    // Remove markdown code blocks if present
-    if (cleanedContent.startsWith("```json")) {
-      cleanedContent = cleanedContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-    } else if (cleanedContent.startsWith("```")) {
-      cleanedContent = cleanedContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    // Generate content
+    const result = await model.generateContent(fullPrompt);
+    const response = await result.response;
+    const content = response.text();
+
+    if (!content) {
+      throw new Error("No content in Gemini response");
     }
 
-    const planResponse: PlanResponse = JSON.parse(cleanedContent);
-    
-    // Validate the response structure
-    if (!planResponse.curriculum || !planResponse.tasks || !planResponse.assumptions) {
-      throw new Error("Invalid plan response structure");
-    }
+    try {
+      // Gemini may return JSON wrapped in markdown code blocks, so we need to clean it
+      let cleanedContent = content.trim();
+      
+      // Remove markdown code blocks if present
+      if (cleanedContent.startsWith("```json")) {
+        cleanedContent = cleanedContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+      } else if (cleanedContent.startsWith("```")) {
+        cleanedContent = cleanedContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
+      }
 
-    if (!Array.isArray(planResponse.curriculum.topics)) {
-      throw new Error("Curriculum topics must be an array");
-    }
+      const planResponse: PlanResponse = JSON.parse(cleanedContent);
+      
+      // Validate the response structure
+      if (!planResponse.curriculum || !planResponse.tasks || !planResponse.assumptions) {
+        throw new Error("Invalid plan response structure");
+      }
 
-    if (!Array.isArray(planResponse.tasks)) {
-      throw new Error("Tasks must be an array");
-    }
+      if (!Array.isArray(planResponse.curriculum.topics)) {
+        throw new Error("Curriculum topics must be an array");
+      }
 
-    if (!Array.isArray(planResponse.assumptions)) {
-      throw new Error("Assumptions must be an array");
-    }
+      if (!Array.isArray(planResponse.tasks)) {
+        throw new Error("Tasks must be an array");
+      }
 
-    return planResponse;
-  } catch (parseError) {
-    console.error("Failed to parse AI response:", content);
-    throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`);
+      if (!Array.isArray(planResponse.assumptions)) {
+        throw new Error("Assumptions must be an array");
+      }
+
+      return planResponse;
+    } catch (parseError) {
+      console.error("Failed to parse AI response:", content);
+      throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`);
+    }
+  } catch (error) {
+    console.error("Gemini API error:", error);
+    throw new Error(`Gemini API error: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
