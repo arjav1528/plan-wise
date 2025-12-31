@@ -130,7 +130,7 @@ export async function generatePlan(
     throw new Error("GEMINI_API_KEY is empty");
   }
 
-  let modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  let modelName = "gemini-1.5-flash";
   const userPrompt = buildUserPrompt(request, completedTasks);
 
   const jsonSchema = `\n\nRequired JSON Output Format (for TODAY'S plan only):
