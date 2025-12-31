@@ -364,12 +364,12 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="text-sm font-semibold tracking-tight">Today's Focus</h2>
                         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
-                                        <Plus className="h-3 w-3" />
-                                        Add Task
-                                    </Button>
-                                </DialogTrigger>
+                            <DialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground">
+                                    <Plus className="h-3 w-3" />
+                                    Add Task
+                                </Button>
+                            </DialogTrigger>
                             <DialogContent>
                                 <form onSubmit={handleCreateTask}>
                                     <DialogHeader>
@@ -426,7 +426,6 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                                 </form>
                             </DialogContent>
                         </Dialog>
-                        </div>
                     </div>
 
                     {tasksError && (
