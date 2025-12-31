@@ -345,7 +345,7 @@ export function ProjectWorkspace({ project: initialProject, tasks: initialTasks,
                                 </div>
                                 {curriculum.generated_at && (
                                     <CardDescription>
-                                        Generated on {new Date(curriculum.generated_at).toLocaleDateString()}
+                                        Generated on {new Date(curriculum.generated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                                     </CardDescription>
                                 )}
                             </CardHeader>
