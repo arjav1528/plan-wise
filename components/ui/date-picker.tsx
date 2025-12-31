@@ -133,6 +133,7 @@ export function DatePickerComponent({
         popperModifiers={[
           {
             name: "offset",
+            fn: () => { return { x: 0, y: 8 } },
             options: {
               offset: [0, 8],
             },

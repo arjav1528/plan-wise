@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { type Project, type Task, type PostgrestError, type Curriculum, type PlanResponse } from "@/lib/types";
+import { type Project, type Task, type Curriculum, type PlanResponse } from "@/lib/types";
 import { createTask, updateTask, deleteTask, getTasksByProjectId } from "@/lib/supabase/tasks";
 import { updateProject } from "@/lib/supabase/projects";
+import { PostgrestError } from "@supabase/supabase-js";
 
 interface ProjectWorkspaceProps {
     project: Project;
