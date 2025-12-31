@@ -31,21 +31,20 @@ export function CreateProjectDialog({
   onOpenChange,
   onProjectCreated,
 }: CreateProjectDialogProps) {
-  const [title, setTitle] = useState("");
+  const [goal, setGoal] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState<Date | null>(null);
-  const [dailyHours, setDailyHours] = useState("");
   const [files, setFiles] = useState<FileData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
-      setTitle("");
+      setGoal("");
       setDescription("");
-      setDeadline(undefined);
-      setDailyHours("");
+      setDeadline(null);
       setFiles([]);
     }
   }, [open]);
@@ -142,11 +141,11 @@ export function CreateProjectDialog({
       // Prepare project data
       const projectData = {
         user_id: user.id,
-        title: title.trim(),
+        title: goal.trim(),
         description: description.trim() || null,
         is_active: true,
         deadline: deadline ? deadline.toISOString() : null,
-        daily_hours: dailyHours ? parseFloat(dailyHours) : null,
+        daily_hours: null,
       };
 
       // Store file URLs
@@ -160,17 +159,65 @@ export function CreateProjectDialog({
         projectData.description = (projectData.description || '') + fileInfo;
       }
 
-      const { error } = await createProject(projectData);
+      const { data: project, error } = await createProject(projectData);
 
-      if (error) {
-        throw error;
+      if (error || !project) {
+        throw error || new Error("Failed to create project");
+      }
+
+      // Auto-generate plan for the first day
+      setIsGeneratingPlan(true);
+      try {
+        // For the first day, always generate a plan for a single day
+        const timeframe = "1 day";
+
+        // Generate plan
+        const planRequest = {
+          goal: goal.trim(),
+          timeframe: timeframe,
+          prior_knowledge: description.trim() || undefined,
+          project_metadata: {
+            deadline: deadline ? deadline.toISOString() : undefined,
+          },
+        };
+
+        const planResponse = await fetch("/api/plan/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...planRequest,
+            project_id: project.id,
+          }),
+        });
+
+        if (planResponse.ok) {
+          const planData = await planResponse.json();
+          
+          // Save curriculum
+          await fetch("/api/plan/apply", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              project_id: project.id,
+              plan: planData,
+            }),
+          });
+        }
+      } catch (planError) {
+        console.error("Error auto-generating plan:", planError);
+        // Don't fail project creation if plan generation fails
+      } finally {
+        setIsGeneratingPlan(false);
       }
 
       // Reset form
-      setTitle("");
+      setGoal("");
       setDescription("");
-      setDeadline(undefined);
-      setDailyHours("");
+      setDeadline(null);
       setFiles([]);
       onOpenChange(false);
       onProjectCreated?.();
@@ -188,62 +235,46 @@ export function CreateProjectDialog({
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Create a new project to organize your tasks and track your progress.
+            Create a new project with a goal. A plan will be automatically generated for you.
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="title">
-                Title <span className="text-destructive">*</span>
+              <Label htmlFor="goal">
+                Goal <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="title"
-                placeholder="Enter project title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                id="goal"
+                placeholder="e.g., Master Data Structures and Algorithms"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
                 required
-                disabled={isLoading}
+                disabled={isLoading || isGeneratingPlan}
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Description (Optional)</Label>
               <Textarea
                 id="description"
-                placeholder="Enter project description"
+                placeholder="Add any additional context or prior knowledge..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || isGeneratingPlan}
                 rows={3}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="deadline">Deadline</Label>
-                <DatePickerComponent
-                  selected={deadline}
-                  onChange={(date) => setDeadline(date)}
-                  placeholder="Pick a date"
-                  disabled={isLoading}
-                  minDate={new Date()}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="dailyHours">Daily Hours</Label>
-                <Input
-                  id="dailyHours"
-                  type="number"
-                  placeholder="e.g., 2.5"
-                  value={dailyHours}
-                  onChange={(e) => setDailyHours(e.target.value)}
-                  disabled={isLoading}
-                  min="0"
-                  step="0.5"
-                />
-              </div>
+            <div className="grid gap-2">
+              <Label htmlFor="deadline">Deadline (Optional)</Label>
+              <DatePickerComponent
+                selected={deadline}
+                onChange={(date) => setDeadline(date)}
+                placeholder="Pick a date"
+                disabled={isLoading || isGeneratingPlan}
+                minDate={new Date()}
+              />
             </div>
 
             <FileUpload
@@ -262,8 +293,12 @@ export function CreateProjectDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !title.trim()}>
-              {isLoading ? "Creating..." : "Create Project"}
+            <Button type="submit" disabled={isLoading || isGeneratingPlan || !goal.trim()}>
+              {isGeneratingPlan 
+                ? "Generating Plan..." 
+                : isLoading 
+                ? "Creating..." 
+                : "Create Project"}
             </Button>
           </DialogFooter>
         </form>
