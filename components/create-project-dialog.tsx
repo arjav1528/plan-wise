@@ -34,6 +34,7 @@ export function CreateProjectDialog({
   const [goal, setGoal] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState<Date | null>(null);
+  const [dailyHours, setDailyHours] = useState("");
   const [files, setFiles] = useState<FileData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -44,6 +45,7 @@ export function CreateProjectDialog({
       setGoal("");
       setDescription("");
       setDeadline(null);
+      setDailyHours("");
       setFiles([]);
     }
   }, [open]);
@@ -141,7 +143,7 @@ export function CreateProjectDialog({
         description: description.trim() || null,
         is_active: true,
         deadline: deadline ? deadline.toISOString() : null,
-        daily_hours: null,
+        daily_hours: dailyHours ? parseFloat(dailyHours) : null,
       };
 
       if (fileUrls.length > 0) {
@@ -164,6 +166,7 @@ export function CreateProjectDialog({
           goal: goal.trim(),
           timeframe: timeframe,
           prior_knowledge: description.trim() || undefined,
+          daily_availability: dailyHours ? parseFloat(dailyHours) : undefined,
           project_metadata: {
             deadline: deadline ? deadline.toISOString() : undefined,
           },
@@ -214,6 +217,7 @@ export function CreateProjectDialog({
       setGoal("");
       setDescription("");
       setDeadline(null);
+      setDailyHours("");
       setFiles([]);
       onOpenChange(false);
       
@@ -275,6 +279,20 @@ export function CreateProjectDialog({
                 placeholder="Pick a date"
                 disabled={isLoading || isGeneratingPlan}
                 minDate={new Date()}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="dailyHours">Daily Hours (Optional)</Label>
+              <Input
+                id="dailyHours"
+                type="number"
+                placeholder="e.g., 2.5"
+                value={dailyHours}
+                onChange={(e) => setDailyHours(e.target.value)}
+                disabled={isLoading || isGeneratingPlan}
+                min="0"
+                step="0.5"
               />
             </div>
 
