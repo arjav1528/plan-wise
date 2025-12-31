@@ -84,11 +84,8 @@ function buildUserPrompt(request: PlanRequest, completedTasks: Array<{ title: st
   prompt += `Goal: ${request.goal}\n\n`;
 
   if (completedTasks.length > 0) {
-    prompt += `IMPORTANT: The following tasks have already been completed. DO NOT include them in today's plan:\n`;
-    completedTasks.forEach((task, index) => {
-      prompt += `${index + 1}. ${task.title}${task.description ? ` - ${task.description}` : ''}\n`;
-    });
-    prompt += `\n`;
+    const taskTitles = completedTasks.map(task => task.title).join(', ');
+    prompt += `CRITICAL: These ${completedTasks.length} tasks are already completed. DO NOT create any task with a similar or identical title: ${taskTitles}\n\n`;
   } else {
     prompt += `Note: No tasks have been completed yet. This appears to be the first day of planning.\n\n`;
   }
